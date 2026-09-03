@@ -15,9 +15,7 @@ export const PLAN_SCHEMA = {
 };
 
 const SYSTEM = `You rename and organise files. You receive a naming specification, the folders that exist, and a numbered list of files with facts about each.
-Reply with ONLY a minified JSON array, one element per file that should change, in exactly this shape:
-[{"from":3,"to":"invoice-acme-2024-03-11.txt"},{"from":7,"to":"lecture-01.txt","reason":"lecture number"}]
-"from" is the file's number in the list. "to" is the complete new name. "reason" is optional, at most 6 words.
+Reply with ONLY a minified JSON array with one object per file that should change, shaped {"from":<file number>,"to":"<complete new name>","reason":"<at most 6 words>"}. Go through every file in order and decide for each.
 Rules:
 - Keep each file's extension exactly as it is.
 - Use "/" only to place a file inside a folder named in the specification or listed as existing. Never use ".." or absolute paths.
@@ -55,7 +53,9 @@ export function normaliseItems(parsed) {
   };
   if (Array.isArray(parsed)) {
     for (const item of parsed) {
-      if (Array.isArray(item) && item.length >= 2) push(item[0], item[1], item[2] ?? '');
+      // the model often repeats the opening bracket after the "[" prefill: [[{...},{...}]]
+      if (Array.isArray(item) && item.some((x) => x && typeof x === 'object')) out.push(...normaliseItems(item));
+      else if (Array.isArray(item) && item.length >= 2) push(item[0], item[1], item[2] ?? '');
       else fromObj(item);
     }
   } else fromObj(parsed);

@@ -113,7 +113,7 @@ const exec = await page.evaluate(async (spec) => {
   const batches = [];
   const r = await executePlan({ adapter: rt.adapter, spec, files, enrichment, folders: [], batchSize: 25, onBatch: (b) => { if (b.phase === 'end') batches.push(b); } });
   const v = validatePlan(r.ops, store.get().listing, { rootPathLength: 64 });
-  return { proposed: r.ops.length, failures: r.failures, batches, stats: r.stats, accepted: v.accepted.map((o) => [o.from, o.to, o.reason]), rejected: v.rejected.map((x) => [x.op.from, x.op.to, x.reason]), dropped: v.dropped.length };
+  return { proposed: r.ops.length, failures: r.failures, batches: r.batches, stats: r.stats, accepted: v.accepted.map((o) => [o.from, o.to, o.reason]), rejected: v.rejected.map((x) => [x.op.from, x.op.to, x.reason]), dropped: v.dropped.length };
 }, spec);
 console.log(`\n== execution pass: ${exec.proposed} proposed, ${exec.accepted.length} valid, ${exec.rejected.length} rejected, ${exec.dropped} no-op; ${exec.stats.generated} tokens in ${((Date.now() - t1) / 1000).toFixed(0)}s wall (${exec.stats.ms} ms model time)`);
 for (const b of exec.batches) { console.log(`   batch ${b.index + 1}: ${b.ok ? `${b.proposed} proposed` : 'unparseable'}${b.unmatched.length ? `, unmatched ${JSON.stringify(b.unmatched)}` : ''}`); console.log(`   raw: ${b.raw}`); }

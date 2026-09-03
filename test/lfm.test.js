@@ -46,3 +46,8 @@ test('normaliseItems accepts alternative shapes', async () => {
   assert.deepEqual(normaliseItems({ 'old.txt': 'new.txt' }), [{ from: 'old.txt', to: 'new.txt', reason: '' }]);
   assert.deepEqual(normaliseItems([[4, 'z.txt']]), [{ from: 4, to: 'z.txt', reason: '' }]);
 });
+
+test('normaliseItems unwraps a nested array from a repeated bracket', async () => {
+  const { normaliseItems } = await import('../src/plan/execute.js');
+  assert.deepEqual(normaliseItems([[{ from: 1, to: 'a.txt' }, { from: 2, to: 'b.txt' }]]).map((x) => x.to), ['a.txt', 'b.txt']);
+});
