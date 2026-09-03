@@ -1,11 +1,12 @@
 """Prefill throughput at realistic agent-loop context lengths, after warmup.
 This is the number that decides whether re-prefilling each iteration is affordable."""
 import os, sys, time, numpy as np, onnxruntime as ort
-from tokenizers import Tokenizer
 
 ROOT = os.environ.get("MODEL_DIR", "LFM2.5-1.2B-Instruct-ONNX")
 variant = sys.argv[1] if len(sys.argv) > 1 else "model_q4"
-tok = Tokenizer.from_file(f"{ROOT}/tokenizer.json")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from minbpe import MinBPE
+tok = MinBPE(f"{ROOT}/tokenizer.json")
 so = ort.SessionOptions(); so.log_severity_level = 3; so.intra_op_num_threads = 4
 sess = ort.InferenceSession(f"{ROOT}/onnx/{variant}.onnx", so, providers=["CPUExecutionProvider"])
 in_names = [i.name for i in sess.get_inputs()]

@@ -1,13 +1,14 @@
 """Native onnxruntime benchmark of the same LFM2.5 ONNX weights the browser runs.
 Measures prefill and decode separately, with KV cache reuse across steps."""
 import os, sys, time, numpy as np, onnxruntime as ort
-from tokenizers import Tokenizer
 
 ROOT = os.environ.get("MODEL_DIR", "LFM2.5-1.2B-Instruct-ONNX")
 variant = sys.argv[1] if len(sys.argv) > 1 else "model_q4"
 threads = int(sys.argv[2]) if len(sys.argv) > 2 else 4
 
-tok = Tokenizer.from_file(f"{ROOT}/tokenizer.json")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from minbpe import MinBPE
+tok = MinBPE(f"{ROOT}/tokenizer.json")
 so = ort.SessionOptions()
 so.log_severity_level = 3
 so.intra_op_num_threads = threads
@@ -42,7 +43,7 @@ def empty_cache():
 
 PROMPT = "List ten short, distinct English nouns as a comma-separated line, then stop."
 text = f"<|startoftext|><|im_start|>user\n{PROMPT}<|im_end|>\n<|im_start|>assistant\n"
-ids = tok.encode(text, add_special_tokens=False).ids
+ids = tok.encode(text)
 n_prompt = len(ids)
 
 cache = empty_cache()
