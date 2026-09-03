@@ -15,7 +15,9 @@ export const PLAN_SCHEMA = {
 };
 
 const SYSTEM = `You rename and organise files. You receive a naming specification, the folders that exist, and a numbered list of files with facts about each.
-Reply with ONLY a minified JSON array, one element per file that should change: {"from":<file number>,"to":"<new path>","reason":"<3-6 words, optional>"}.
+Reply with ONLY a minified JSON array, one element per file that should change, in exactly this shape:
+[{"from":3,"to":"invoice-acme-2024-03-11.txt"},{"from":7,"to":"lecture-01.txt","reason":"lecture number"}]
+"from" is the file's number in the list. "to" is the complete new name. "reason" is optional, at most 6 words.
 Rules:
 - Keep each file's extension exactly as it is.
 - Use "/" only to place a file inside a folder named in the specification or listed as existing. Never use ".." or absolute paths.
@@ -29,6 +31,35 @@ export function buildBatchPrompt(spec, files, enrichment, folders) {
     return `${i + 1}. ${f.path}${facts ? ` — ${facts}` : ''}`;
   });
   return `Specification:\n${spec.trim()}\n\nExisting folders: ${folders.length ? folders.map((d) => `"${d}"`).join(', ') : '(none)'}\n\nFiles:\n${lines.join('\n')}`;
+}
+
+const FROM_KEYS = ['from', 'file', 'index', 'i', 'id', 'number', 'n', 'src', 'source', 'old', 'old_name', 'oldName', 'original', 'name', 'path'];
+const TO_KEYS = ['to', 'new', 'new_name', 'newName', 'new_path', 'newPath', 'rename', 'renamed', 'target', 'dest', 'destination', 'suggested', 'suggestion'];
+
+/** Accept the shapes small models actually produce and map them to {from, to, reason}. */
+export function normaliseItems(parsed) {
+  const out = [];
+  const push = (from, to, reason) => { if (from != null && to != null) out.push({ from, to, reason }); };
+  const fromObj = (o) => {
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return false;
+    const fk = FROM_KEYS.find((k) => o[k] != null);
+    const tk = TO_KEYS.find((k) => o[k] != null && k !== fk);
+    if (fk && tk) { push(o[fk], o[tk], o.reason ?? o.why ?? ''); return true; }
+    // {"3": "new name", "7": "other"} or {"scan0001.txt": "invoice.txt"}
+    const entries = Object.entries(o).filter(([, v]) => typeof v === 'string');
+    if (entries.length && entries.every(([k]) => !FROM_KEYS.includes(k) && !TO_KEYS.includes(k) && k !== 'reason')) {
+      for (const [k, v] of entries) push(k, v, '');
+      return true;
+    }
+    return false;
+  };
+  if (Array.isArray(parsed)) {
+    for (const item of parsed) {
+      if (Array.isArray(item) && item.length >= 2) push(item[0], item[1], item[2] ?? '');
+      else fromObj(item);
+    }
+  } else fromObj(parsed);
+  return out;
 }
 
 /** Resolve the model's "from" against the batch leniently: exact path, basename, or 1-based index. */
@@ -81,8 +112,7 @@ export async function executePlan({ adapter, spec, files, enrichment, folders = 
     const batchOps = [];
     const unmatched = [];
     if (parsed) {
-      for (const item of parsed) {
-        if (!item || typeof item !== 'object') continue;
+      for (const item of normaliseItems(parsed)) {
         const file = resolveFrom(item.from, batch);
         if (!file) { unmatched.push(item.from); continue; }
         let to = String(item.to ?? '').replace(/\\/g, '/').replace(/^\.\//, '').trim();
@@ -101,7 +131,7 @@ export async function executePlan({ adapter, spec, files, enrichment, folders = 
     } else {
       failures.push({ batch: b, error: lastError ?? 'no output', raw: raw.slice(0, 2000) });
     }
-    batches.push({ index: b, size: batch.length, proposed: batchOps.length, unmatched, ok: !!parsed });
+    batches.push({ index: b, size: batch.length, proposed: batchOps.length, unmatched, ok: !!parsed, raw: raw.slice(0, 1500) });
     onBatch?.({ index: b, count: Math.ceil(files.length / batchSize), size: batch.length, phase: 'end', proposed: batchOps.length, ok: !!parsed, unmatched });
   }
   return { ops, failures, batches, newFolders, stats: { generated: totalGenerated, ms: totalMs } };

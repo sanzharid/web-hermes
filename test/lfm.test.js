@@ -37,3 +37,12 @@ test('extractJson tolerates fences, prose, trailing commas, truncation', () => {
   assert.deepEqual(extractJson('{"a":1} trailing', { expect: 'object' }).value, { a: 1 });
   assert.equal(extractJson('nothing').value, null);
 });
+
+test('normaliseItems accepts alternative shapes', async () => {
+  const { normaliseItems } = await import('../src/plan/execute.js');
+  assert.deepEqual(normaliseItems([{ from: 3, to: 'a.txt' }]), [{ from: 3, to: 'a.txt', reason: '' }]);
+  assert.deepEqual(normaliseItems([{ file: 'x.txt', new_name: 'y.txt', reason: 'r' }]), [{ from: 'x.txt', to: 'y.txt', reason: 'r' }]);
+  assert.deepEqual(normaliseItems([{ 1: 'a.txt', 2: 'b.txt' }]), [{ from: '1', to: 'a.txt', reason: '' }, { from: '2', to: 'b.txt', reason: '' }]);
+  assert.deepEqual(normaliseItems({ 'old.txt': 'new.txt' }), [{ from: 'old.txt', to: 'new.txt', reason: '' }]);
+  assert.deepEqual(normaliseItems([[4, 'z.txt']]), [{ from: 4, to: 'z.txt', reason: '' }]);
+});

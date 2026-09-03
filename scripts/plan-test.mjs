@@ -26,7 +26,7 @@ const userDataDir = process.env.PROFILE_DIR ?? new URL('../.bench-profile', impo
 const context = await chromium.launchPersistentContext(userDataDir, { executablePath: CHROME, headless: true, args: ['--js-flags=--max-old-space-size=8192'], env: { ...process.env, LANG: 'C.UTF-8' } });
 const page = await context.newPage();
 page.on('pageerror', (e) => console.log('PAGE ERROR', e.message));
-await page.goto(url);
+await page.goto(url + (process.env.FILES ? `?files=${process.env.FILES}` : ''));
 await page.waitForFunction(() => window.__sift?.store.get().env);
 
 // seed 40 mixed files with content that enrichment can read
@@ -106,7 +106,9 @@ const exec = await page.evaluate(async (spec) => {
   const { enrichFiles } = await import('/src/plan/enrich.js');
   const { validatePlan } = await import('/src/plan/validate.js');
   const store = window.__sift.store; const rt = window.__sift.runtime;
-  const files = store.get().listing.filter((f) => f.kind === 'file');
+  const limit = Number(new URLSearchParams(location.search).get('files')) || 0;
+  let files = store.get().listing.filter((f) => f.kind === 'file');
+  if (limit) files = files.slice(0, limit);
   const enrichment = await enrichFiles(store, files, { text: true });
   const batches = [];
   const r = await executePlan({ adapter: rt.adapter, spec, files, enrichment, folders: [], batchSize: 25, onBatch: (b) => { if (b.phase === 'end') batches.push(b); } });
@@ -114,14 +116,14 @@ const exec = await page.evaluate(async (spec) => {
   return { proposed: r.ops.length, failures: r.failures, batches, stats: r.stats, accepted: v.accepted.map((o) => [o.from, o.to, o.reason]), rejected: v.rejected.map((x) => [x.op.from, x.op.to, x.reason]), dropped: v.dropped.length };
 }, spec);
 console.log(`\n== execution pass: ${exec.proposed} proposed, ${exec.accepted.length} valid, ${exec.rejected.length} rejected, ${exec.dropped} no-op; ${exec.stats.generated} tokens in ${((Date.now() - t1) / 1000).toFixed(0)}s wall (${exec.stats.ms} ms model time)`);
-for (const b of exec.batches) console.log(`   batch ${b.index + 1}: ${b.ok ? `${b.proposed} proposed` : 'unparseable'}${b.unmatched.length ? `, unmatched ${JSON.stringify(b.unmatched)}` : ''}`);
+for (const b of exec.batches) { console.log(`   batch ${b.index + 1}: ${b.ok ? `${b.proposed} proposed` : 'unparseable'}${b.unmatched.length ? `, unmatched ${JSON.stringify(b.unmatched)}` : ''}`); console.log(`   raw: ${b.raw}`); }
 for (const f of exec.failures) console.log(`   failure batch ${f.batch}: ${f.error}\n   ${f.raw.slice(0, 300)}`);
 console.log('   accepted:'); for (const [a, b, r] of exec.accepted) console.log(`     ${a}  →  ${b}   (${r})`);
 console.log('   rejected:'); for (const [a, b, r] of exec.rejected) console.log(`     ${a}  →  ${b}   [${r}]`);
 
 // ---- interpretation pass: thinking on vs off ----
 const instruction = process.env.INSTRUCTION ?? 'make these look nicer and group them by project';
-for (const thinking of [false, true]) {
+for (const thinking of (process.env.SKIP_INTERPRET ? [] : [false, true])) {
   const t = Date.now();
   const r = await page.evaluate(async ({ instruction, thinking }) => {
     const { interpret } = await import('/src/plan/interpret.js');

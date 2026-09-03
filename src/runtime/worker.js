@@ -108,7 +108,8 @@ async function generate({ id, req }) {
     const t1 = performance.now();
     const ids = typeof out.tolist === 'function' ? out.tolist()[0] : Array.from(out.data);
     const newIds = ids.slice(promptTokens).map(Number);
-    const full = tokenizer.decode(newIds, { skip_special_tokens: false });
+    // keep <|tool_call_start|>/<|tool_call_end|> (they are special tokens the parser needs); drop turn markers
+    const full = tokenizer.decode(newIds, { skip_special_tokens: false }).replace(/<\|im_end\|>|<\|im_start\|>|<\|startoftext\|>|<\|pad\|>/g, '');
     const generated = newIds.length;
     post({
       type: 'done', id, text: full,
