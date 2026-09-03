@@ -274,10 +274,20 @@ The built site is already pushed to the **`gh-pages`** branch. Turn it on once:
 Settings, Pages, Source **Deploy from a branch**, branch `gh-pages`, folder `/ (root)`.
 The site then lands at `https://sanzharid.github.io/web-hermes/`.
 
-This route runs no GitHub Actions job, which matters here: every Actions run on this account
-currently fails in about three seconds with no logs and no steps executed, the signature of a
-billing block rather than a broken workflow. Branch-based Pages is served by GitHub's own
-publishing step and does not consume Actions minutes.
+This route runs no GitHub Actions job, which is what makes it work here. Every Actions run on
+this account currently fails in about three seconds before any step executes, with the
+annotation:
+
+> The job was not started because your account is locked due to a billing issue.
+
+That is an account-level lock, so it hits every workflow equally, Cloudflare and Pages alike,
+and no change to a workflow file can get around it. Branch-based Pages is served by GitHub's own
+publishing step rather than an Actions runner, so it keeps working while the account is locked:
+the site was verified serving all its files, the 12.9 MB WASM included, after the lock was
+confirmed.
+
+Clearing the lock is a billing action on the account (Settings, Billing and licensing). Once it
+is cleared, the workflows below start working with no code change.
 
 **The site is live at https://sanzharid.github.io/web-hermes/.** Pages enabled itself when the
 branch was pushed, so no setting needed flipping. Confirm under Settings, Pages that the source
