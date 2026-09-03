@@ -133,10 +133,11 @@ for (const thinking of (process.env.SKIP_INTERPRET ? [] : [false, true])) {
     const files = store.get().listing.filter((f) => f.kind === 'file');
     const caps = rt.adapter.capabilities();
     if (thinking && !caps.thinking) return { skipped: 'checkpoint has no reasoning mode' };
-    const r = await interpret({ adapter: rt.adapter, instruction, files, enrichment: store.get().enrichment, folders: [], thinking });
-    return { spec: r.spec, thinking: r.thinking.length, stats: r.stats };
-  }, { instruction, thinking });
+    const r = await interpret({ adapter: rt.adapter, instruction, files, enrichment: store.get().enrichment, folders: [], thinking, maxNewTokens: max || undefined });
+    return { spec: r.spec, thinking: r.thinking.length, thinkingText: r.thinking.slice(0, 600), stats: r.stats };
+  }, { instruction, thinking, max: Number(process.env.INTERPRET_MAX) || 0 });
   console.log(`\n== interpretation (thinking ${thinking ? 'on' : 'off'}): ${r.skipped ? `skipped — ${r.skipped}` : `${r.stats.generated} tokens, ${r.thinking} chars of reasoning, ${((Date.now() - t) / 1000).toFixed(0)}s`}`);
+  if (r.thinkingText) console.log(`   reasoning: ${JSON.stringify(r.thinkingText)}`);
   if (r.spec) console.log(r.spec.split('\n').map((l) => `   ${l}`).join('\n'));
 }
 await context.close();

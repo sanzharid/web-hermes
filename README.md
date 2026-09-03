@@ -17,7 +17,7 @@ Target: Windows VDI, ~16 GB RAM, probably no GPU.
 | 3 Runtime adapter | done | model loads from cache with the network off; throughput below |
 | 4 Execution pass | done | 40 mixed files, invalid suggestions caught by validation |
 | 5 Interpretation pass | done | spec screen, presets; thinking on/off compared below |
-| 6 Harness | done | two-tool query completes without looping (unit + browser) |
+| 6 Harness | done | real-model query: `get_stats` call then answer in 2 iterations; a rename request is queued, not written (121 s and 149 s on the sandbox CPU) |
 | 7 PWA polish | done | manifest, service worker, offline audit, rules-only degradation |
 
 ## Environment check (step 0)

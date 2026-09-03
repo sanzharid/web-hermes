@@ -20,12 +20,12 @@ export function buildInterpretPrompt(instruction, files, enrichment, folders, sa
   return `Instruction: ${instruction.trim()}\n\nExisting folders: ${folders.length ? folders.join(', ') : '(none)'}\n\nFiles (${files.length} total${files.length > sample ? `, first ${sample} shown` : ''}):\n${shown.join('\n')}`;
 }
 
-export async function interpret({ adapter, instruction, files, enrichment, folders = [], signal, onToken, thinking = true, temperature = 0.4 }) {
+export async function interpret({ adapter, instruction, files, enrichment, folders = [], signal, onToken, thinking = true, temperature = 0.4, maxNewTokens }) {
   const messages = [
     { role: 'system', content: SYSTEM },
     { role: 'user', content: buildInterpretPrompt(instruction, files, enrichment, folders) },
   ];
-  const r = await adapter.complete({ messages, thinking, signal, maxNewTokens: thinking ? 2048 : 1024, sampling: { temperature, top_p: 0.9 } }, onToken);
+  const r = await adapter.complete({ messages, thinking, signal, maxNewTokens: maxNewTokens ?? (thinking ? 2048 : 1024), sampling: { temperature, top_p: 0.9 } }, onToken);
   return { spec: r.content.trim(), thinking: r.thinking, stats: r.stats };
 }
 
