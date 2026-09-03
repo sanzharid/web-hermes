@@ -21,6 +21,31 @@ export async function pickDirectory() {
   return handle;
 }
 
+/**
+ * Classify a folder-picker failure. `showDirectoryPicker` existing on `window` does not mean it is
+ * permitted: Chrome's "File editing" content setting, and the enterprise policies behind it, leave
+ * the function in place and reject the call. Returns null when the user simply cancelled.
+ */
+export function classifyPickerError(err) {
+  if (err?.name === 'AbortError') return null;
+  const blocked = err?.name === 'SecurityError' || err?.name === 'NotAllowedError'
+    || /not allowed by the user agent|user activation|gesture/i.test(err?.message ?? '');
+  if (blocked) {
+    return {
+      kind: 'blocked',
+      title: 'Chrome refused the folder picker.',
+      detail: 'The File System Access API is present but not permitted in this browser, which usually means it is switched off by a setting or by managed policy. This is a browser or device configuration, not something the app can work around: without folder access nothing in Sift can run, rules included.',
+      checks: [
+        'chrome://settings/content/fileEditing — "File editing" must not be set to blocked. If the page says it is managed by your organisation, it is policy, not a personal setting.',
+        'chrome://policy — search for FileSystem. DefaultFileSystemReadGuardSetting or DefaultFileSystemWriteGuardSetting set to 2 blocks it outright; FileSystemReadBlockedForUrls or FileSystemWriteBlockedForUrls block specific sites.',
+        'If policy is the cause, ask for this origin to be added to FileSystemWriteAskForUrls and FileSystemReadAskForUrls.',
+      ],
+      raw: `${err?.name ?? 'Error'}: ${err?.message ?? ''}`,
+    };
+  }
+  return { kind: 'other', title: 'Could not open the folder.', detail: err?.message ?? String(err), checks: [], raw: `${err?.name ?? 'Error'}: ${err?.message ?? ''}` };
+}
+
 export async function rememberDirectory(id, handle) {
   return saveDirectory(id, handle);
 }

@@ -1,4 +1,4 @@
-import { h, plural, fmtDate } from './dom.js';
+import { h, clear, plural, fmtDate } from './dom.js';
 import * as fs from '../fs/index.js';
 import { saveSettings } from '../settings.js';
 
@@ -31,13 +31,28 @@ export function renderConnect(root, store) {
   }
 
   const err = h('div', { class: 'note warn', hidden: true });
+  const showError = (e) => {
+    const info = fs.classifyPickerError(e);
+    if (!info) return; // cancelled
+    store.silent({ pickerError: info }); // set() would re-render and discard the detail below
+    clear(err);
+    err.hidden = false;
+    err.append(h('b', null, info.title), h('p', { style: { margin: '6px 0' } }, info.detail));
+    if (info.checks.length) {
+      err.append(h('p', { style: { margin: '6px 0 2px' } }, 'Check, in order:'));
+      const ol = h('ol', { style: { margin: '0', paddingLeft: '18px' } });
+      // chrome:// URLs cannot be linked from a page; they have to be pasted into the address bar.
+      for (const c of info.checks) ol.append(h('li', { style: { margin: '3px 0' } }, c));
+      err.append(ol);
+    }
+    err.append(h('p', { class: 'mono', style: { margin: '6px 0 0', fontSize: '12px' } }, info.raw));
+  };
   const pick = h('button', { class: 'primary', onclick: async () => {
     try {
       const handle = await fs.pickDirectory();
       await openFolder(store, handle.name, handle);
     } catch (e) {
-      if (e?.name === 'AbortError') return;
-      err.hidden = false; err.textContent = `Could not open folder: ${e.message}`;
+      showError(e);
     }
   } }, 'Pick a folder');
 
@@ -47,6 +62,11 @@ export function renderConnect(root, store) {
     h('div', { class: 'row' }, pick),
     err,
   );
+
+  if (state.pickerError?.kind === 'blocked') {
+    err.hidden = false;
+    err.append(h('b', null, state.pickerError.title), ' ', state.pickerError.detail);
+  }
 
   const list = h('div', { class: 'remembered' });
   fs.listDirectories().then((records) => {
@@ -63,6 +83,7 @@ export function renderConnect(root, store) {
           if (p !== 'granted') { err.hidden = false; err.textContent = 'Access was not granted. Pick the folder again to reconnect.'; return; }
           await openFolder(store, rec.id, rec.handle);
         } catch (e) {
+          if (fs.classifyPickerError(e)?.kind === 'blocked') { showError(e); return; }
           err.hidden = false; err.textContent = `Could not reconnect: ${e.message}. The folder may have moved; pick it again.`;
         }
       } }, 'Reconnect');

@@ -12,6 +12,29 @@ let failures = 0;
 const check = (c, m) => { console.log(`${c ? 'ok' : 'FAIL'} - ${m}`); if (!c) failures++; };
 await page.goto(server.resolvedUrls.local[0]);
 await page.waitForSelector('.connect');
+
+// A blocked File System Access API: the function exists, the call is refused. This is what a
+// managed Chrome (enterprise policy, or the "File editing" content setting) does.
+await page.evaluate(() => {
+  window.showDirectoryPicker = () => Promise.reject(
+    new DOMException("Failed to execute 'showDirectoryPicker' on 'Window': The request is not allowed by the user agent or the platform in the current context.", 'SecurityError'));
+});
+await page.click('button:has-text("Pick a folder")');
+await page.waitForSelector('.note.warn', { timeout: 5000 });
+const blocked = await page.evaluate(() => {
+  const t = document.querySelector('.note.warn')?.innerText ?? '';
+  return { text: t, kind: window.__sift.store.get().pickerError?.kind };
+});
+check(blocked.kind === 'blocked', 'a refused picker is classified as blocked, not a generic failure');
+check(/File editing/.test(blocked.text) && /chrome:\/\/policy/.test(blocked.text),
+  'the error names the two settings to check');
+check(/SecurityError/.test(blocked.text), 'the raw error is still shown for reference');
+await page.click('nav a:has-text("Environment")');
+await page.waitForSelector('.page');
+const envText = await page.evaluate(() => document.body.innerText);
+check(/present but BLOCKED/.test(envText), 'Environment reports the API as blocked rather than just present');
+await page.evaluate(() => { window.__sift.store.set({ pickerError: null, screen: 'connect' }); });
+await page.waitForSelector('.connect');
 await page.evaluate(async () => {
   const root = await navigator.storage.getDirectory();
   try { await root.removeEntry('sift-ui', { recursive: true }); } catch {}

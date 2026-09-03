@@ -28,6 +28,7 @@ const store = createStore({
   env: null,
   settings: loadSettings(),
   notice: null,
+  pickerError: null, // set when showDirectoryPicker is refused, so Environment can report it
 });
 
 window.__sift = { store }; // for browser tests
