@@ -90,7 +90,27 @@ Thinking `temperature 0.05`; interpretation calls raise temperature to 0.4.
 
 ## Measured throughput
 
-__BENCH__
+Measured in the headless Chromium of the build sandbox (4 vCPU, WebGPU = SwiftShader, so the
+**wasm** backend with 4 threads). These are the sandbox's numbers, not the VDI's; the VDI
+measures itself on the Models screen ("Measure tokens/s") and the number is shown in the top bar.
+
+| Model | Variant | Load (cached) | Prefill | Decode |
+| --- | --- | --- | --- | --- |
+| LFM2.5-1.2B-Instruct | q4 (811 MB) | 27 s | 12–19 tok/s | **0.7 tok/s** |
+| LFM2.5-1.2B-Instruct | q8 (1.45 GB) | 7–33 s | 12–19 tok/s | **0.69 tok/s** |
+
+Decode is the same at q4 and q8, so on this CPU it is compute-bound in ORT's WASM kernels, not
+weight-bandwidth-bound. Both produced the same, sensible answer to the scratch prompt
+(`QuarterlyReport_Q3_2024_Finance.pdf`).
+
+What that means for the execution pass: a 25-file batch is roughly 1,000–1,400 prompt tokens
+(around 1.5 minutes of prefill) plus 15–30 output tokens per changed file (10–15 minutes of
+decode at 0.7 tok/s). __PLAN_RESULT__
+
+The spec's threshold was "a rename batch in under a minute". On this sandbox the 1.2B tier is an
+order of magnitude off that on CPU. Whether the VDI is closer depends entirely on its CPU; a
+hardware WebGPU adapter would change the picture completely. Rules-based renaming needs none of
+this and is the default path.
 
 ## Architecture
 
