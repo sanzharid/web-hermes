@@ -31,8 +31,10 @@ class Runtime {
   }
 
   threads() {
+    // Multi-threaded WASM needs SharedArrayBuffer, which needs cross-origin isolation.
     if (!globalThis.crossOriginIsolated) return 1;
-    return Math.max(1, Math.min(navigator.hardwareConcurrency ?? 4, 8));
+    const cores = navigator.hardwareConcurrency ?? 4;
+    return Math.max(1, Math.min(this.threadsOverride ?? cores, 16));
   }
 
   async autoLoad(modelId) {

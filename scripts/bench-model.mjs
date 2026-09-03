@@ -43,14 +43,16 @@ const timer = setInterval(async () => {
     if (s !== last) { last = s; console.log(`  [${((Date.now() - t0) / 1000).toFixed(0)}s] ${s}`); }
   } catch {}
 }, 2000);
-const loaded = await page.evaluate(async ({ id, mirror, dtype }) => {
-  const { getRuntime } = await import('/src/runtime/index.js');
-  const rt = getRuntime();
+const loaded = await page.evaluate(async ({ id, mirror, dtype, threads }) => {
+  // Use the singleton main.js already attached to the store. A dynamic import can resolve to a
+  // second module instance (Vite adds a ?t= cache-buster after a file edit), whose store is null.
+  const rt = window.__sift.runtime;
   if (mirror) rt.remoteHost = mirror;
   if (dtype) { const st = window.__sift.store; st.set({ settings: { ...st.get().settings, dtype: { [id]: dtype } } }); }
+  if (threads) rt.threadsOverride = threads;
   await new Promise((r) => { const s = window.__sift.store; if (s.get().env) r(); else { const u = s.subscribe((st) => { if (st.env) { u(); r(); } }); } });
   try { await rt.load(id); return { ok: true, info: rt.adapter.loadInfo, backend: rt.backend }; } catch (e) { return { ok: false, error: e.message }; }
-}, { id: modelId, mirror: mirrorUrl, dtype: process.env.DTYPE ?? null });
+}, { id: modelId, mirror: mirrorUrl, dtype: process.env.DTYPE ?? null, threads: Number(process.env.THREADS) || null });
 clearInterval(timer);
 console.log(`loaded in ${((Date.now() - t0) / 1000).toFixed(0)}s:`, JSON.stringify(loaded));
 if (!loaded.ok) { await browser.close(); await server.close(); process.exit(1); }
