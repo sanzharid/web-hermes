@@ -274,17 +274,21 @@ The built site is already pushed to the **`gh-pages`** branch. Turn it on once:
 Settings, Pages, Source **Deploy from a branch**, branch `gh-pages`, folder `/ (root)`.
 The site then lands at `https://sanzharid.github.io/web-hermes/`.
 
-This route runs no GitHub Actions job, which is what makes it work here. Every Actions run on
-this account currently fails in about three seconds before any step executes, with the
-annotation:
+This route runs none of the workflows in this repository, which is what made it work while the
+account was locked. Every *user* workflow run failed in about three seconds before any step
+executed, with the annotation:
 
 > The job was not started because your account is locked due to a billing issue.
 
-That is an account-level lock, so it hits every workflow equally, Cloudflare and Pages alike,
-and no change to a workflow file can get around it. Branch-based Pages is served by GitHub's own
-publishing step rather than an Actions runner, so it keeps working while the account is locked:
-the site was verified serving all its files, the 12.9 MB WASM included, after the lock was
-confirmed.
+That is an account-level lock, so it hit every workflow equally, Cloudflare and Pages alike, and
+no change to a workflow file could get around it.
+
+Pushing to `gh-pages` instead triggers GitHub's own `pages-build-deployment` workflow, which kept
+running normally throughout the lock: the site was verified serving all its files, the 12.9 MB
+WASM included, after the lock was confirmed. Note that this system workflow *is* metered as
+Actions Linux minutes (the usage report attributed 7 minutes to it for three deploys), so
+"branch deploys use no Actions minutes" would be wrong. On a public repository those minutes are
+discounted to a net of zero, which is why the whole line item cost nothing.
 
 Clearing the lock is a billing action on the account (Settings, Billing and licensing). Once it
 is cleared, the workflows below start working with no code change.
