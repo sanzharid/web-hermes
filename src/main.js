@@ -93,8 +93,29 @@ runtime.attach(store);
 runtime.modelsModule = () => import('./runtime/models.js');
 window.__sift.runtime = runtime;
 
+// On a host that cannot set COOP/COEP itself (GitHub Pages), the service worker supplies them, but
+// only on responses it serves. The very first load is therefore not cross-origin isolated, so
+// SharedArrayBuffer is missing and WASM inference would be stuck on one thread. Once the worker is
+// active and controlling this page, reload once so the isolated copy is the one that sticks.
+const ISOLATION_RELOAD = 'sift.isolationReload';
+const flag = {
+  get: () => { try { return sessionStorage.getItem(ISOLATION_RELOAD); } catch { return '1'; } },
+  set: () => { try { sessionStorage.setItem(ISOLATION_RELOAD, '1'); } catch {} },
+  clear: () => { try { sessionStorage.removeItem(ISOLATION_RELOAD); } catch {} },
+};
+
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  navigator.serviceWorker.register('./sw.js').catch(() => {});
+  navigator.serviceWorker.register('./sw.js').then(async () => {
+    if (globalThis.crossOriginIsolated) { flag.clear(); return; }
+    await navigator.serviceWorker.ready;
+    if (!navigator.serviceWorker.controller) {
+      // The worker calls clients.claim() on activate; wait for it to take over this page.
+      await new Promise((resolve) => navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true }));
+    }
+    if (flag.get()) return; // already reloaded once and still not isolated: do not loop
+    flag.set();
+    location.reload();
+  }).catch(() => {});
 }
 
 import { openFolder } from './ui/connect.js';

@@ -264,13 +264,33 @@ The service worker precaches only the app shell (685 KB). The ONNX Runtime WASM 
 the first model load and cached then. Offline still works once a model has been loaded, which
 the offline audit verifies.
 
+### GitHub Pages (default, free, no other account)
+
+`.github/workflows/pages.yml` tests, builds and publishes `dist/` on every push to `main`.
+Turn it on once: repository Settings, Pages, set Source to **GitHub Actions**. The site lands
+at `https://sanzharid.github.io/web-hermes/`.
+
+Pages cannot set response headers, so it cannot send COOP/COEP, and without those there is no
+`SharedArrayBuffer` and WASM inference is stuck on a single thread. The app handles this itself:
+the service worker adds the headers to every response it serves, and on a first visit the page
+registers the worker and reloads once, guarded so it can never loop. `scripts/offline-test.mjs`
+serves the build with no headers at all and asserts the app still reaches
+`crossOriginIsolated === true`.
+
+The repository is public, so the deployed site is publicly reachable. Nothing leaves the
+browser at runtime, but the URL is not private.
+
 ### Cloudflare Pages
 
-Two routes. Both need a Pages project named `sift`; change the name in `package.json` and
-`.github/workflows/deploy.yml` if you use a different one.
+`.github/workflows/deploy.yml` does the same thing for Cloudflare, and is **manual only**
+(`workflow_dispatch`), because without the two secrets every push would fail it. Cloudflare
+Pages also requires a working billing account on the target account.
 
-**A. Connect the repo in the dashboard (recommended).** Cloudflare then rebuilds on every push
-to `main` with no secrets stored in GitHub. In Workers & Pages, create a Pages project, connect
+Two routes once that is sorted. Both need a Pages project named `sift`; change the name in
+`package.json` and the workflow if you use a different one.
+
+**A. Connect the repo in the dashboard.** Cloudflare rebuilds on every push to `main`, with no
+secrets stored in GitHub. In Workers & Pages, create a Pages project, connect
 `sanzharid/web-hermes`, and set:
 
 | Setting | Value |
@@ -278,10 +298,10 @@ to `main` with no secrets stored in GitHub. In Workers & Pages, create a Pages p
 | Production branch | `main` |
 | Build command | `npm run build` |
 | Build output directory | `dist` |
-| Node version | `22` (set env var `NODE_VERSION=22`) |
+| Node version | `22` (env var `NODE_VERSION=22`) |
 
 **B. Deploy from the CLI or CI.** Create an API token with the *Cloudflare Pages: Edit*
-permission, then either run it locally:
+permission, then run locally:
 
 ```bash
 export CLOUDFLARE_API_TOKEN=...    # Pages: Edit
@@ -289,14 +309,16 @@ export CLOUDFLARE_ACCOUNT_ID=...   # Workers & Pages overview, right-hand sideba
 npm run deploy
 ```
 
-or let `.github/workflows/deploy.yml` do it on every push to `main`, once those two values are
-added as repository secrets under Settings, Secrets and variables, Actions. The workflow runs
-the unit tests before it deploys.
+or add those two as repository secrets and run the workflow from the Actions tab. Do not paste
+the token into a chat or commit it; both routes read it from the environment.
 
-Do not paste the token into a chat or commit it; both routes read it from the environment.
+Cloudflare serves `dist/_headers`, so there the isolation headers arrive on the first load and
+the self-reload never triggers.
 
-After the first deploy, open the site once while online so the service worker installs, then
-load a model from the Models screen. From then on it works with the network off.
+### After the first deploy
+
+Open the site once while online so the service worker installs, then load a model from the
+Models screen. From then on it works with the network off.
 
 ### About the npm audit warnings
 

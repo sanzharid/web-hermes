@@ -32,22 +32,30 @@ await page.evaluate(async () => {
   for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
   for (const k of await caches.keys()) if (k.startsWith('sift-')) await caches.delete(k);
 });
+// Land on the site as a first-time visitor. The server above sends no COOP/COEP, so this is the
+// GitHub Pages case: the app must register the worker and reload itself once to become isolated.
+await page.evaluate(() => { try { sessionStorage.clear(); } catch {} });
 await page.reload();
 await page.waitForFunction(() => window.__sift?.store.get().env);
-const first = await page.evaluate(async () => {
-  await navigator.serviceWorker.ready;
-  const reg = await navigator.serviceWorker.getRegistration();
-  const swRes = await fetch('sw.js').then((r) => `${r.status} ${r.headers.get('content-type')}`).catch((e) => `ERR ${e.message}`);
-  return { coi: crossOriginIsolated, sw: !!navigator.serviceWorker.controller, reg: reg ? { scope: reg.scope, installing: !!reg.installing, waiting: !!reg.waiting, active: !!reg.active } : null, swRes };
-});
-console.log('first load:', JSON.stringify(first));
-await page.waitForFunction(async () => (await navigator.serviceWorker.getRegistration())?.active, null, { timeout: 30000 });
-// second load: controlled by the SW, headers injected
-await page.reload();
-await page.waitForFunction(() => window.__sift?.store.get().env);
-const second = await page.evaluate(() => ({ coi: crossOriginIsolated, sw: !!navigator.serviceWorker.controller, sab: typeof SharedArrayBuffer !== 'undefined' }));
-check(second.sw, 'service worker controls the page after reload');
-check(second.coi && second.sab, `service worker supplies COOP/COEP: crossOriginIsolated=${second.coi}, SharedArrayBuffer=${second.sab}`);
+try {
+  await page.waitForFunction(() => crossOriginIsolated, null, { timeout: 30000 });
+} catch {
+  // fall through to the assertions below, which report what actually happened
+}
+const second = await page.evaluate(() => ({
+  coi: crossOriginIsolated,
+  sw: !!navigator.serviceWorker.controller,
+  sab: typeof SharedArrayBuffer !== 'undefined',
+  reloads: (() => { try { return sessionStorage.getItem('sift.isolationReload'); } catch { return null; } })(),
+}));
+check(second.sw, 'service worker controls the page');
+check(second.coi && second.sab, `app reloads itself once into cross-origin isolation with no server headers: crossOriginIsolated=${second.coi}, SharedArrayBuffer=${second.sab}`);
+
+// A page that is already isolated must not reload again: prove it stays put.
+const before = await page.evaluate(() => performance.now());
+await new Promise((r) => setTimeout(r, 3000));
+const stable = await page.evaluate(() => performance.now());
+check(stable > before, 'no reload loop once isolated (page context survived 3s)');
 
 await context.setOffline(true);
 await page.reload();

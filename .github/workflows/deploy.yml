@@ -1,8 +1,9 @@
 name: Deploy to Cloudflare Pages
 
+# Manual only. Cloudflare Pages needs a working billing account, and without the two secrets
+# below every push would fail this workflow. Add `push: {branches: [main]}` back once the
+# Cloudflare side is sorted, and drop the GitHub Pages workflow if you want a single target.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
