@@ -33,7 +33,7 @@ export function renderModelPanel(right, store, selected) {
 
 function renderInstruction(right, store, selected, enabled) {
   const state = store.get();
-  const ta = h('textarea', { rows: 4, placeholder: 'e.g. make these look nicer and group them by project', value: state.instruction, onchange: (e) => store.set({ instruction: e.target.value }), oninput: (e) => { state.instruction = e.target.value; } });
+  const ta = h('textarea', { rows: 4, placeholder: 'e.g. make these look nicer and group them by project', value: state.instruction, oninput: (e) => store.silent({ instruction: e.target.value }) });
   const presets = loadPresets();
   const presetSel = h('select', null, h('option', { value: '' }, presets.length ? 'Load a saved preset…' : 'No saved presets'), presets.map((p) => h('option', { value: p.name }, p.name)));
   presetSel.addEventListener('change', () => {

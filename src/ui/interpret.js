@@ -9,7 +9,7 @@ export function renderInterpret(root, store) {
   const meta = state.specMeta ?? {};
   const page = h('div', { class: 'page spec' });
   root.append(page);
-  const ta = h('textarea', { class: 'mono', value: state.spec ?? '', oninput: (e) => { state.spec = e.target.value; }, onchange: (e) => store.set({ spec: e.target.value }) });
+  const ta = h('textarea', { class: 'mono', value: state.spec ?? '', oninput: (e) => store.silent({ spec: e.target.value }) });
   const job = currentJob();
   const note = h('div', { class: 'note', hidden: true });
   const useBtn = h('button', { class: 'primary', disabled: !!job || !files.length, onclick: () => { store.set({ spec: ta.value, screen: 'work' }); runExecute(store, ta.value, files, { title: meta.instruction ? `Instruction: ${meta.instruction.slice(0, 60)}` : 'Specification' }); } }, `Use this on ${plural(files.length, 'file')}`);
