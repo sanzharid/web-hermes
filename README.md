@@ -105,7 +105,16 @@ weight-bandwidth-bound. Both produced the same, sensible answer to the scratch p
 
 What that means for the execution pass: a 25-file batch is roughly 1,000–1,400 prompt tokens
 (around 1.5 minutes of prefill) plus 15–30 output tokens per changed file (10–15 minutes of
-decode at 0.7 tok/s). __PLAN_RESULT__
+decode at 0.7 tok/s). Measured: a 10-file batch (`scripts/plan-test.mjs`, `FILES=10`) took **13.3 minutes** (536
+output tokens). The model returned one object per file as asked; validation dropped the 8
+no-ops, leaving a case-only rename and one wrong name (the model copied the example filename
+from the specification onto an unrelated file). Nothing invalid reached the review screen, which
+is the guarantee the design relies on. The 1.2B checkpoint on CPU is usable for small batches
+with a human reviewing, not for 200-file runs.
+
+Two runtime details the raw output revealed: the model repeats the opening bracket after the
+`[` prefill (`[[{…}]]`, now unwrapped), and small models copy any literal example in the prompt,
+so the execution prompt describes the shape instead of showing an example.
 
 The spec's threshold was "a rename batch in under a minute". On this sandbox the 1.2B tier is an
 order of magnitude off that on CPU. Whether the VDI is closer depends entirely on its CPU; a

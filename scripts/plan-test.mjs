@@ -101,7 +101,7 @@ const spec = process.env.SPEC ?? `1. Pattern: <category>-<topic>-<date or versio
 5. Lowercase, hyphens as separators, no spaces. Keep the extension exactly.
 6. Do not create folders. Leave files unchanged when no sensible category applies.`;
 const t1 = Date.now();
-const exec = await page.evaluate(async (spec) => {
+const exec = process.env.SKIP_EXECUTE ? null : await page.evaluate(async (spec) => {
   const { executePlan } = await import('/src/plan/execute.js');
   const { enrichFiles } = await import('/src/plan/enrich.js');
   const { validatePlan } = await import('/src/plan/validate.js');
@@ -115,11 +115,13 @@ const exec = await page.evaluate(async (spec) => {
   const v = validatePlan(r.ops, store.get().listing, { rootPathLength: 64 });
   return { proposed: r.ops.length, failures: r.failures, batches: r.batches, stats: r.stats, accepted: v.accepted.map((o) => [o.from, o.to, o.reason]), rejected: v.rejected.map((x) => [x.op.from, x.op.to, x.reason]), dropped: v.dropped.length };
 }, spec);
+if (exec) {
 console.log(`\n== execution pass: ${exec.proposed} proposed, ${exec.accepted.length} valid, ${exec.rejected.length} rejected, ${exec.dropped} no-op; ${exec.stats.generated} tokens in ${((Date.now() - t1) / 1000).toFixed(0)}s wall (${exec.stats.ms} ms model time)`);
 for (const b of exec.batches) { console.log(`   batch ${b.index + 1}: ${b.ok ? `${b.proposed} proposed` : 'unparseable'}${b.unmatched.length ? `, unmatched ${JSON.stringify(b.unmatched)}` : ''}`); console.log(`   raw: ${b.raw}`); }
 for (const f of exec.failures) console.log(`   failure batch ${f.batch}: ${f.error}\n   ${f.raw.slice(0, 300)}`);
 console.log('   accepted:'); for (const [a, b, r] of exec.accepted) console.log(`     ${a}  →  ${b}   (${r})`);
 console.log('   rejected:'); for (const [a, b, r] of exec.rejected) console.log(`     ${a}  →  ${b}   [${r}]`);
+}
 
 // ---- interpretation pass: thinking on vs off ----
 const instruction = process.env.INSTRUCTION ?? 'make these look nicer and group them by project';
