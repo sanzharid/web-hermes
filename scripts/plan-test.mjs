@@ -127,7 +127,7 @@ console.log('   rejected:'); for (const [a, b, r] of exec.rejected) console.log(
 const instruction = process.env.INSTRUCTION ?? 'make these look nicer and group them by project';
 for (const thinking of (process.env.SKIP_INTERPRET ? [] : [false, true])) {
   const t = Date.now();
-  const r = await page.evaluate(async ({ instruction, thinking }) => {
+  const r = await page.evaluate(async ({ instruction, thinking, max }) => {
     const { interpret } = await import('/src/plan/interpret.js');
     const store = window.__sift.store; const rt = window.__sift.runtime;
     const files = store.get().listing.filter((f) => f.kind === 'file');
