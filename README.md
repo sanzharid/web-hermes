@@ -34,8 +34,61 @@ persistence, and classifies the machine:
 I could not run it in the target VDI from here. The headless Chromium used for the tests
 reports `software` (Google SwiftShader), which is the case the spec warns about, so the CPU
 path is the one that has been exercised end to end. **Run the check on the VDI before
-deciding anything about the model tier**; it takes one page load. Also look at `chrome://gpu`
-for blocklist status, which a page cannot read.
+deciding anything about the model tier.**
+
+### Checking the VDI without deploying anything
+
+Open any page in Chrome on the VDI, press F12, and paste this into the Console:
+
+```js
+(async () => {
+  const a = await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' });
+  const info = a ? (a.info ?? await a.requestAdapterInfo?.()) : null;
+  const mb = (n) => (n ? (n / 1048576).toFixed(0) + ' MB' : '-');
+  console.table({
+    webgpu: !!navigator.gpu,
+    vendor: info?.vendor ?? '-',
+    architecture: info?.architecture ?? '-',
+    device: info?.device ?? '-',
+    description: info?.description ?? '-',
+    fallbackAdapter: a?.isFallbackAdapter ?? '-',
+    maxBufferSize: mb(a?.limits.maxBufferSize),
+    maxStorageBufferBindingSize: mb(a?.limits.maxStorageBufferBindingSize),
+    shaderF16: a ? a.features.has('shader-f16') : '-',
+    cpuThreads: navigator.hardwareConcurrency,
+    deviceMemoryGB: navigator.deviceMemory ?? 'not reported',
+    crossOriginIsolated: self.crossOriginIsolated,
+    fileSystemAccess: 'showDirectoryPicker' in window,
+    storageQuota: mb((await navigator.storage.estimate()).quota),
+  });
+})();
+```
+
+How to read it:
+
+- `vendor` naming nvidia / intel / amd/ apple means a real adapter. `google` with
+  `architecture: swiftshader`, or `fallbackAdapter: true`, means software rendering:
+  treat it as no GPU.
+- `webgpu: false`, or the whole adapter row showing `-`, means no WebGPU at all.
+- **The browser never reports VRAM.** `maxBufferSize` and `maxStorageBufferBindingSize` are
+  buffer limits, not memory size, and on many drivers they are just the spec defaults
+  (1024 MB / 128 MB). Use them as a ceiling on a single weight buffer, not as a VRAM figure.
+- `shaderF16: true` is what makes the q4f16 weight variants usable.
+- `crossOriginIsolated` will be false on a scratch page. It only matters on the deployed
+  app, where the headers (or the service worker) turn it on for multi-threaded WASM.
+
+For the real VRAM number and the blocklist status, which no page can read, use these on the
+VDI itself:
+
+- `chrome://gpu` — the top "Graphics Feature Status" list says whether WebGPU is hardware
+  accelerated, software only, or blocklisted, and why. Search the page for `WebGPU`.
+- `dxdiag` — Windows key, type `dxdiag`, Display tab, "Display Memory (VRAM)". On a vGPU
+  profile this is the number that decides the model tier.
+- Task Manager, Performance tab, GPU — shows "Dedicated GPU memory" and confirms a GPU is
+  passed through to the VM at all.
+
+Once the app is deployed, the Environment screen shows all of the above plus the
+recommendation, and the Models screen measures tokens/s.
 
 ### Things that contradict the spec (say so and stop)
 
