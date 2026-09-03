@@ -255,9 +255,48 @@ browser's outbound TLS.
 
 ## Deploy
 
-`dist/` is the artifact. `firebase.json` and `public/_headers` set the isolation headers for
-Firebase Hosting and Cloudflare Pages; GitHub Pages works too because the service worker adds
-them on the second load.
+`dist/` is the artifact: 16 files, 58 MB, no server side. `public/_headers` (Cloudflare) and
+`firebase.json` set the cross-origin isolation headers; GitHub Pages works too, because the
+service worker adds them itself on the second load.
+
+The service worker precaches only the app shell (685 KB). The ONNX Runtime WASM binaries are
+13-24 MB each and only one is ever used, chosen by backend at runtime, so they are fetched on
+the first model load and cached then. Offline still works once a model has been loaded, which
+the offline audit verifies.
+
+### Cloudflare Pages
+
+Two routes. Both need a Pages project named `sift`; change the name in `package.json` and
+`.github/workflows/deploy.yml` if you use a different one.
+
+**A. Connect the repo in the dashboard (recommended).** Cloudflare then rebuilds on every push
+to `main` with no secrets stored in GitHub. In Workers & Pages, create a Pages project, connect
+`sanzharid/web-hermes`, and set:
+
+| Setting | Value |
+| --- | --- |
+| Production branch | `main` |
+| Build command | `npm run build` |
+| Build output directory | `dist` |
+| Node version | `22` (set env var `NODE_VERSION=22`) |
+
+**B. Deploy from the CLI or CI.** Create an API token with the *Cloudflare Pages: Edit*
+permission, then either run it locally:
+
+```bash
+export CLOUDFLARE_API_TOKEN=...    # Pages: Edit
+export CLOUDFLARE_ACCOUNT_ID=...   # Workers & Pages overview, right-hand sidebar
+npm run deploy
+```
+
+or let `.github/workflows/deploy.yml` do it on every push to `main`, once those two values are
+added as repository secrets under Settings, Secrets and variables, Actions. The workflow runs
+the unit tests before it deploys.
+
+Do not paste the token into a chat or commit it; both routes read it from the environment.
+
+After the first deploy, open the site once while online so the service worker installs, then
+load a model from the Models screen. From then on it works with the network off.
 
 ## Non-goals
 

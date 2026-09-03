@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "node --test test/*.test.js",
     "test:browser": "node scripts/browser-test.mjs",
-    "prepare": "node scripts/copy-ort.mjs"
+    "prepare": "node scripts/copy-ort.mjs",
+    "deploy": "npm run build && npx --yes wrangler@4 pages deploy dist --project-name=sift"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
