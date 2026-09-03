@@ -88,7 +88,10 @@ render(store.get());
 runEnvironmentCheck().then((env) => store.set({ env })).catch((e) => store.set({ env: { error: String(e) } }));
 
 // Restore a previously loaded model's identity for the status pill (weights load lazily on demand).
-getRuntime().attach(store);
+const runtime = getRuntime();
+runtime.attach(store);
+runtime.modelsModule = () => import('./runtime/models.js');
+window.__sift.runtime = runtime;
 
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
