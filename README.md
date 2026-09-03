@@ -264,21 +264,40 @@ The service worker precaches only the app shell (685 KB). The ONNX Runtime WASM 
 the first model load and cached then. Offline still works once a model has been loaded, which
 the offline audit verifies.
 
-### GitHub Pages (default, free, no other account)
+### GitHub Pages from a branch (works with Actions disabled)
 
-`.github/workflows/pages.yml` tests, builds and publishes `dist/` on every push to `main`.
-Turn it on once: repository Settings, Pages, set Source to **GitHub Actions**. The site lands
-at `https://sanzharid.github.io/web-hermes/`.
+The built site is already pushed to the **`gh-pages`** branch. Turn it on once:
+Settings, Pages, Source **Deploy from a branch**, branch `gh-pages`, folder `/ (root)`.
+The site then lands at `https://sanzharid.github.io/web-hermes/`.
+
+This route runs no GitHub Actions job, which matters here: every Actions run on this account
+currently fails in about three seconds with no logs and no steps executed, the signature of a
+billing block rather than a broken workflow. Branch-based Pages is served by GitHub's own
+publishing step and does not consume Actions minutes.
+
+To publish a new build later:
+
+```bash
+npm run deploy:pages
+```
+
+That rebuilds, then force-pushes `dist/` onto `gh-pages` as a single-commit orphan branch, so
+the branch only ever holds the current build.
+
+`.github/workflows/pages.yml` does the same thing through Actions and will start working by
+itself once the billing block is lifted. If you enable it, switch Settings, Pages, Source to
+**GitHub Actions**, and stop using `npm run deploy:pages`, or the two will fight over the same
+site.
 
 Pages cannot set response headers, so it cannot send COOP/COEP, and without those there is no
-`SharedArrayBuffer` and WASM inference is stuck on a single thread. The app handles this itself:
-the service worker adds the headers to every response it serves, and on a first visit the page
+`SharedArrayBuffer` and WASM inference is stuck on one thread. The app handles that itself: the
+service worker adds the headers to every response it serves, and on a first visit the page
 registers the worker and reloads once, guarded so it can never loop. `scripts/offline-test.mjs`
 serves the build with no headers at all and asserts the app still reaches
 `crossOriginIsolated === true`.
 
-The repository is public, so the deployed site is publicly reachable. Nothing leaves the
-browser at runtime, but the URL is not private.
+The repository is public, so the deployed site is publicly reachable. Nothing leaves the browser
+at runtime, but the URL is not private.
 
 ### Cloudflare Pages
 
