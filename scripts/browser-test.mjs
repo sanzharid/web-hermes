@@ -80,6 +80,8 @@ check(m1.move === true, `native FileSystemFileHandle.move() used: ${m1.move}`);
 async function runBatch(label) {
   // Rules: sequence numbering + tidy whitespace; through the real UI.
   await page.evaluate(() => window.__sift.store.set({ rules: [{ type: 'whitespace', separator: false }, { type: 'sequence', start: 1, pad: 3, template: '{n} {stem}', sortBy: 'name' }], screen: 'work' }));
+  // The agent console is the default surface now; rules live in a side tab.
+  await page.click('.tabs button:has-text("Rules")');
   await page.waitForSelector('button:has-text("Preview changes")');
   await page.click('button:has-text("Preview changes")');
   await page.waitForSelector('.footer-actions button:has-text("Apply")');
