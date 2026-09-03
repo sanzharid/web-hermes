@@ -246,7 +246,11 @@ node scripts/browser-test.mjs           # headless e2e over OPFS: 200 adversaria
 node scripts/bench-model.mjs [modelId]  # load the model, measure tokens/s
 node scripts/plan-test.mjs [modelId]    # 40 mixed files through the execution and interpretation passes
 node scripts/offline-test.mjs           # service worker, COOP/COEP injection, shell and model offline
+npm run test:live                       # drive the deployed site: boot, SW, isolation, env check
 ```
+
+`test:live` needs direct outbound access to github.io; it fails from sandboxes that tunnel
+browser TLS through a proxy.
 
 The headless tests use the Origin Private File System as the folder (same handle API) and need
 a UTF-8 locale for non-ASCII names. `HF_MIRROR=<dir>` points the model scripts at a local copy
@@ -274,6 +278,10 @@ This route runs no GitHub Actions job, which matters here: every Actions run on 
 currently fails in about three seconds with no logs and no steps executed, the signature of a
 billing block rather than a broken workflow. Branch-based Pages is served by GitHub's own
 publishing step and does not consume Actions minutes.
+
+**The site is live at https://sanzharid.github.io/web-hermes/.** Pages enabled itself when the
+branch was pushed, so no setting needed flipping. Confirm under Settings, Pages that the source
+reads `gh-pages` / `(root)`.
 
 To publish a new build later:
 

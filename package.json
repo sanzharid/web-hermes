@@ -11,7 +11,8 @@
     "test:browser": "node scripts/browser-test.mjs",
     "prepare": "node scripts/copy-ort.mjs",
     "deploy": "npm run build && npx --yes wrangler@4 pages deploy dist --project-name=sift",
-    "deploy:pages": "npm run build && node scripts/deploy-pages.mjs"
+    "deploy:pages": "npm run build && node scripts/deploy-pages.mjs",
+    "test:live": "node scripts/live-check.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
