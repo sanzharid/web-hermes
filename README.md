@@ -298,6 +298,19 @@ Do not paste the token into a chat or commit it; both routes read it from the en
 After the first deploy, open the site once while online so the service worker installs, then
 load a model from the Models screen. From then on it works with the network off.
 
+### About the npm audit warnings
+
+`npm audit` reports 4 high advisories, all in `sharp`, `onnxruntime-node` and its `adm-zip`
+dependency. Those are Node-only packages that `@huggingface/transformers` declares
+unconditionally, and none of them reaches the browser: the built bundle references
+`onnxruntime-web` only, and contains no reference to any of the three. They affect a build
+machine's `node_modules`, not the deployed static site, and there is no fixed version to move
+to. Verify after any dependency bump with:
+
+```bash
+grep -c 'sharp\|onnxruntime-node\|adm-zip' dist/assets/*.js   # expect 0 matches
+```
+
 ## Non-goals
 
 Cloud inference, mobile, editing file contents, whole-drive recursion, deleting files.
