@@ -14,11 +14,11 @@ Target: Windows VDI, ~16 GB RAM, probably no GPU.
 | 0 Environment check | built; **not yet run on the target VDI** | see below |
 | 1 Filesystem spine | done | rename, restore handle, rename again — passes headless |
 | 2 Rules engine + review UI + undo | done | 200-file batch renames and undoes cleanly, both move paths |
-| 3 Runtime adapter | done | model loads from cache with the network off; throughput below |
+| 3 Runtime adapter | done | cached model loads and generates with the network off (10.9 s load, headless); throughput below |
 | 4 Execution pass | done | 40 mixed files, invalid suggestions caught by validation |
-| 5 Interpretation pass | done | spec screen, presets; thinking on/off compared below |
+| 5 Interpretation pass | done | spec screen, presets; Instruct produced a recognisable spec in 291 s; thinking on/off compared below |
 | 6 Harness | done | real-model query: `get_stats` call then answer in 2 iterations; a rename request is queued, not written (121 s and 149 s on the sandbox CPU) |
-| 7 PWA polish | done | manifest, service worker, offline audit, rules-only degradation |
+| 7 PWA polish | done | manifest, generated service worker; offline audit passes: shell offline, COOP/COEP injected by the worker, model offline; rules-only without a model |
 
 ## Environment check (step 0)
 
@@ -48,9 +48,10 @@ for blocklist status, which a page cannot read.
 2. **Thinking is not a per-call switch in LFM2.5.** There is no chat-template flag, system
    directive or documented prefill token. Reasoning is a property of the checkpoint:
    `LFM2.5-1.2B-Instruct` never emits a trace, `LFM2.5-1.2B-Thinking` and `8B-A1B` always open
-   with `<think>…</think>`. The adapter implements per-call control the only way available:
-   on a reasoning checkpoint, `thinking: false` prefills an empty think block. Whether that
-   holds is measured, not assumed (see below).
+   with `<think>…</think>`. The one candidate for per-call control, prefilling an empty think
+   block, was tried and **measured ineffective**: 1.2B-Thinking then deliberates untagged in the
+   content instead (see "Thinking policy" below). `capabilities().thinkingControl` is `false`;
+   the thinking policy is implemented by choosing the checkpoint, not a flag.
 3. **No XGrammar.** WebLLM/MLC has no LFM2 builds (nothing in the prebuilt list, nothing in
    the `mlc-ai` HF org), so the only runtime with LFM2.5 is Transformers.js, which has no
    sampler-level grammar. `capabilities().grammarConstraints` is `false`; the execution pass
@@ -120,6 +121,28 @@ The spec's threshold was "a rename batch in under a minute". On this sandbox the
 order of magnitude off that on CPU. Whether the VDI is closer depends entirely on its CPU; a
 hardware WebGPU adapter would change the picture completely. Rules-based renaming needs none of
 this and is the default path.
+
+## Thinking policy, measured
+
+Same instruction ("make these look nicer and group them by project"), same 40 files, sandbox CPU:
+
+| Checkpoint | `thinking` | Output | Time |
+| --- | --- | --- | --- |
+| 1.2B-Instruct | off (no trace exists) | 6-rule spec, recognisable, a little chatty | 186 tokens, 291 s |
+| 1.2B-Thinking | off via empty `<think></think>` prefill | 600 tokens of untagged deliberation, no spec reached (cap) | 870 s |
+| 1.2B-Thinking | on | 2,601 chars of tagged reasoning, no spec reached within the 600-token cap | 855 s |
+
+Conclusions that change the spec's table:
+
+- Per-call routing on LFM2.5 means **per-checkpoint routing**. "Thinking on" = load the Thinking
+  checkpoint; "thinking off" = load Instruct. The adapter reports this as `thinkingControl: false`
+  and the harness's `thinking` flag is accepted but cannot change behaviour.
+- On a CPU backend, the Thinking checkpoint is not usable for interpretation: it needs several
+  hundred reasoning tokens before the first line of output, which is 10+ minutes at 0.7 tok/s.
+  The Instruct checkpoint is the default for every call on `wasm`. On a hardware WebGPU adapter
+  (tens of tok/s) the Thinking checkpoint becomes a reasonable choice for the interpretation pass.
+- Thinking traces are stripped from history in the loop explicitly (`stripThinking`), and the
+  1.2B-Thinking template itself only keeps the last assistant turn's trace.
 
 ## Architecture
 

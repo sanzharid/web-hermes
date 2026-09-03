@@ -27,10 +27,10 @@ function box(title) {
   return { el, status, thinkEl, contentEl, out, progress, cancel, skip };
 }
 
-function tokenSink(ui) {
+function tokenSink(ui, caps) {
   let sawThink = false;
   return (t) => {
-    if (t.kind === 'think') { sawThink = true; ui.thinkEl.append(t.text); ui.status.textContent = 'thinking…'; ui.skip.hidden = false; }
+    if (t.kind === 'think') { sawThink = true; ui.thinkEl.append(t.text); ui.status.textContent = 'thinking…'; ui.skip.hidden = !caps?.thinkingControl; }
     else { ui.contentEl.append(t.text); if (sawThink) { ui.status.textContent = 'writing…'; ui.skip.hidden = true; } }
     ui.out.scrollTop = ui.out.scrollHeight;
   };
@@ -60,7 +60,7 @@ export async function runInterpret(store, instruction, files, { thinking } = {})
     ui.status.textContent = 'reading file facts…';
     const enrichment = await enrichFiles(store, files.slice(0, 40), { text: true, signal: ctrl.signal, onProgress: (d, n) => { ui.progress.firstChild.style.width = `${(d / n) * 50}%`; } });
     ui.status.textContent = useThinking ? 'thinking…' : 'writing…';
-    const r = await interpret({ adapter: rt.adapter, instruction, files, enrichment, folders: folders(store), signal: ctrl.signal, thinking: useThinking, onToken: tokenSink(ui) });
+    const r = await interpret({ adapter: rt.adapter, instruction, files, enrichment, folders: folders(store), signal: ctrl.signal, thinking: useThinking, onToken: tokenSink(ui, caps) });
     ui.progress.firstChild.style.width = '100%';
     store.set({ spec: r.spec, specMeta: { instruction, thinking: r.thinking, stats: r.stats, usedThinking: useThinking }, screen: 'interpret' });
   } catch (e) {
@@ -125,7 +125,7 @@ export async function runAgent(store, query, { thinking } = {}) {
     sessionStorage.setItem('sift.loop', JSON.stringify(state));
     await runLoop({
       adapter: rt.adapter, registry: getRegistry(), state, ctx: { store }, signal: ctrl.signal, thinking: thinking ?? caps.thinking,
-      onToken: tokenSink(ui),
+      onToken: tokenSink(ui, caps),
       onEvent: (e) => {
         if (e.type === 'iteration') { ui.status.textContent = `step ${e.n}`; ui.thinkEl.textContent = ''; ui.contentEl.textContent = ''; ui.progress.firstChild.style.width = `${(e.n / 8) * 100}%`; }
         else if (e.type === 'tool-call') log.append(h('div', null, `→ ${e.name}(${JSON.stringify(e.arguments)})`));

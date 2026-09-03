@@ -6,7 +6,7 @@
 export const TOOL_CALL_START = '<|tool_call_start|>';
 export const TOOL_CALL_END = '<|tool_call_end|>';
 export const JSON_TOOL_DIRECTIVE = 'Output function calls as JSON: a list of objects with "name" and "arguments" keys.';
-export const EMPTY_THINK_PREFILL = '<think>\n\n</think>\n';
+export const EMPTY_THINK_PREFILL = '<think>\n\n</think>\n'; // kept for experiments; measured ineffective on 1.2B-Thinking
 
 /** Split a raw completion into { thinking, content } and strip think tags. */
 export function splitThinking(text) {

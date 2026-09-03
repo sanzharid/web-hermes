@@ -26,6 +26,13 @@ const page = await context.newPage();
 page.on('pageerror', (e) => console.log('PAGE ERROR', e.message));
 
 await page.goto(url);
+// Start from a clean service-worker state (a stale worker from an earlier build would serve the old shell);
+// the model weight cache ("transformers-cache") is kept.
+await page.evaluate(async () => {
+  for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+  for (const k of await caches.keys()) if (k.startsWith('sift-')) await caches.delete(k);
+});
+await page.reload();
 await page.waitForFunction(() => window.__sift?.store.get().env);
 const first = await page.evaluate(async () => {
   await navigator.serviceWorker.ready;
@@ -58,7 +65,7 @@ const r = await page.evaluate(async ({ id, mirror }) => {
   if (mirror) rt.remoteHost = mirror; // same URL the bench cached under, so Cache API keys match; the host is unreachable offline anyway
   const { getModel } = await rt.modelsModule();
   const m = getModel(id);
-  if (!(await rt.isCached(m))) return { skipped: 'weights not cached in this profile' };
+  if (!(await rt.isCached(m))) { const c = await caches.open('transformers-cache'); const keys = (await c.keys()).map((r) => r.url).filter((u) => u.includes('LiquidAI')); return { skipped: 'weights not cached in this profile', keys: keys.slice(0, 12), dtype: window.__sift.store.get().settings.dtype, backend: rt.backend, names: await caches.keys() }; }
   const t0 = performance.now();
   try {
     await rt.load(id);
@@ -66,7 +73,7 @@ const r = await page.evaluate(async ({ id, mirror }) => {
     return { ok: true, ms: Math.round(performance.now() - t0), content: out.content, tps: out.stats.tps };
   } catch (e) { return { ok: false, error: e.message }; }
 }, { id: modelId, mirror: process.env.HF_MIRROR ? `http://127.0.0.1:${process.env.HF_MIRROR_PORT ?? 48211}/` : null });
-if (r.skipped) console.log(`skip - model offline load: ${r.skipped}`);
+if (r.skipped) console.log(`skip - model offline load: ${r.skipped}`, JSON.stringify(r, null, 1));
 else check(r.ok, `model loads and generates with the network off: ${JSON.stringify(r)}`);
 await context.close();
 server.close();

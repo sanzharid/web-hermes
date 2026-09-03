@@ -22,7 +22,7 @@ export function renderModelPanel(right, store, selected) {
     right.append(h('div', { class: 'note' }, state.model.status === 'loading' ? `Loading ${state.model.id}: ${state.model.progress?.text ?? ''}` : state.model.status === 'error' ? `Model failed to load: ${state.model.error}` : 'No model loaded. Load one under Models, or use rules.'),
       h('div', { class: 'row' }, h('button', { onclick: () => store.set({ screen: 'models' }) }, 'Open Models')));
   } else {
-    right.append(h('p', { class: 'muted' }, `${caps.model} on ${caps.backend}${caps.thinking ? ', reasoning checkpoint' : ', instruct checkpoint (no reasoning trace)'}${caps.grammarConstraints ? '' : '. Output is validated and retried rather than grammar-constrained.'}`));
+    right.append(h('p', { class: 'muted' }, `${caps.model} on ${caps.backend}${caps.thinking ? ', reasoning checkpoint (every call reasons first)' : ', instruct checkpoint (no reasoning trace)'}${caps.grammarConstraints ? '' : '. Output is validated and retried rather than grammar-constrained.'}`));
   }
   if (state.notice) right.append(h('div', { class: 'note warn' }, state.notice, ' ', h('button', { class: 'small', onclick: () => store.set({ notice: null }) }, 'dismiss')));
   if (job) right.append(job.el);

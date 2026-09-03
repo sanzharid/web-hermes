@@ -14,7 +14,7 @@ export const MODELS = [
     variants: { q4f16: { bytes: 760_279_040 + 182_795, external: 1 }, q4: { bytes: 850_059_264 + 183_173, external: 1 }, q8: { bytes: 1_520_558_080 + 185_703, external: 1 } }, // q8 = model_quantized.onnx in transformers.js naming
     defaults: { webgpu: 'q4f16', wasm: 'q4' },
     sampling: { temperature: 0.1, top_p: 0.1, top_k: 50, repetition_penalty: 1.05 },
-    notes: 'Instruction following and tool use. No reasoning trace. Default tier for planning and structured output.',
+    notes: 'Instruction following and tool use. No reasoning trace. Default tier for planning, structured output and, on CPU, interpretation too.',
     status: 'ok',
   },
   {
@@ -27,7 +27,7 @@ export const MODELS = [
     variants: { q4f16: { bytes: 760_279_040 + 182_795, external: 1 }, q4: { bytes: 850_059_264 + 183_173, external: 1 }, q8: { bytes: 1_520_558_080 + 185_703, external: 1 } }, // q8 = model_quantized.onnx in transformers.js naming
     defaults: { webgpu: 'q4f16', wasm: 'q4' },
     sampling: { temperature: 0.05, top_p: 0.1, top_k: 50, repetition_penalty: 1.05 },
-    notes: 'Same size, reasoning-tuned. Emits a <think> block first; the adapter can suppress it per call. Use for interpretation and planning; slower per answer.',
+    notes: 'Same size, reasoning-tuned. Always opens with a <think> block that cannot be switched off per call (measured). Several hundred reasoning tokens per answer: only sensible on WebGPU.',
     status: 'ok',
   },
   {

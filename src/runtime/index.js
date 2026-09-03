@@ -55,7 +55,7 @@ class Runtime {
       const cache = await caches.open(CACHE_NAME);
       const keys = await cache.keys();
       const v = variantFor(model, this.backend ?? 'wasm', this.dtypeFor(model));
-      const need = `/${model.hf}/resolve/main/onnx/model_${v.dtype}.onnx`;
+      const need = `/${model.hf}/resolve/main/onnx/model_${v.dtype === 'q8' ? 'quantized' : v.dtype}.onnx`; // transformers.js file naming
       return keys.some((r) => r.url.includes(need) && !r.url.includes('.onnx_data')) && keys.some((r) => r.url.includes(`${need}_data`));
     } catch {
       return false;

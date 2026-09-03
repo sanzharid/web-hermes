@@ -6,7 +6,7 @@
 // Backed by Transformers.js in a Web Worker. Tokens are { kind: 'think'|'content'|'done', text, stats? }.
 
 import { getModel, variantFor } from './models.js';
-import { EMPTY_THINK_PREFILL, JSON_TOOL_DIRECTIVE, toolSpec, splitThinking } from './lfm.js';
+import { JSON_TOOL_DIRECTIVE, toolSpec, splitThinking } from './lfm.js';
 
 export class TransformersAdapter {
   constructor({ backend, ortBase, threads, remoteHost, dtype } = {}) {
@@ -73,6 +73,10 @@ export class TransformersAdapter {
     return {
       grammarConstraints: false, // Transformers.js has no sampler-level grammar; plan layer validates and retries
       thinking: this.model?.reasoning === 'always',
+      // Measured on LFM2.5-1.2B-Thinking: prefilling an empty <think></think> block does not stop the
+      // model reasoning, it just reasons untagged in the content. Reasoning is per checkpoint, so a
+      // call's `thinking` flag cannot be honoured on this runtime; callers pick the checkpoint instead.
+      thinkingControl: false,
       backend: this.backend,
       model: this.model?.id ?? null,
       context: this.model?.context ?? null,
@@ -94,7 +98,8 @@ export class TransformersAdapter {
     const finalMessages = sysText ? [{ role: 'system', content: sysText }, ...msgs] : msgs;
 
     let pre = prefill;
-    if (!thinking && this.model.reasoning === 'always') pre = EMPTY_THINK_PREFILL + pre;
+    // `thinking` is accepted for interface compatibility; see capabilities().thinkingControl.
+    void thinking;
     if (schema && !pre.trim()) pre += schema.type === 'array' ? '[' : schema.type === 'object' ? '{' : '';
 
     const queue = [];

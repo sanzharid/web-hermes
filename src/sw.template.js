@@ -37,6 +37,7 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return; // model downloads go straight to the network / transformers-cache
+  if (url.pathname.endsWith('/sw.js')) return; // the worker script itself is never served from this cache
   event.respondWith((async () => {
     const cache = await caches.open(VERSION);
     const isNav = req.mode === 'navigate';
