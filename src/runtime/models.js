@@ -11,7 +11,7 @@ export const MODELS = [
     params: '1.2B',
     reasoning: 'never',
     context: 32768,
-    variants: { q4f16: 760_279_040 + 182_795, q4: 850_059_264 + 183_173, q8: 1_520_558_080 + 185_703 /* model_quantized.onnx: transformers.js maps dtype q8 to that file */ },
+    variants: { q4f16: { bytes: 760_279_040 + 182_795, external: 1 }, q4: { bytes: 850_059_264 + 183_173, external: 1 }, q8: { bytes: 1_520_558_080 + 185_703, external: 1 } }, // q8 = model_quantized.onnx in transformers.js naming
     defaults: { webgpu: 'q4f16', wasm: 'q4' },
     sampling: { temperature: 0.1, top_p: 0.1, top_k: 50, repetition_penalty: 1.05 },
     notes: 'Instruction following and tool use. No reasoning trace. Default tier for planning and structured output.',
@@ -24,7 +24,7 @@ export const MODELS = [
     params: '1.2B',
     reasoning: 'always',
     context: 32768,
-    variants: { q4f16: 760_279_040 + 182_795, q4: 850_059_264 + 183_173, q8: 1_520_558_080 + 185_703 /* model_quantized.onnx: transformers.js maps dtype q8 to that file */ },
+    variants: { q4f16: { bytes: 760_279_040 + 182_795, external: 1 }, q4: { bytes: 850_059_264 + 183_173, external: 1 }, q8: { bytes: 1_520_558_080 + 185_703, external: 1 } }, // q8 = model_quantized.onnx in transformers.js naming
     defaults: { webgpu: 'q4f16', wasm: 'q4' },
     sampling: { temperature: 0.05, top_p: 0.1, top_k: 50, repetition_penalty: 1.05 },
     notes: 'Same size, reasoning-tuned. Emits a <think> block first; the adapter can suppress it per call. Use for interpretation and planning; slower per answer.',
@@ -37,7 +37,7 @@ export const MODELS = [
     params: '8.3B total / 1.5B active (MoE)',
     reasoning: 'always',
     context: 128000,
-    variants: { q4f16: 2_146_754_560 + 2_130_632_704 + 767_897_600, q4: 2_137_366_528 + 2_146_213_888 + 1_310_531_584 },
+    variants: { q4f16: { bytes: 2_146_754_560 + 2_130_632_704 + 767_897_600, external: 3 }, q4: { bytes: 2_137_366_528 + 2_146_213_888 + 1_310_531_584, external: 3 } },
     defaults: { webgpu: 'q4f16', wasm: 'q4' },
     sampling: { temperature: 0.2, top_p: 0.1, top_k: 80, repetition_penalty: 1.05 },
     notes: 'The tier the spec wants for a general harness. Not loadable in a browser today.',
@@ -53,12 +53,12 @@ export function getModel(id) {
 /** Pick the weight variant: an explicit dtype (if the model has it) or the backend default. */
 export function variantFor(model, backend, dtype) {
   const d = dtype && model.variants[dtype] ? dtype : model.defaults[backend] ?? model.defaults.wasm;
-  return { dtype: d, bytes: model.variants[d] };
+  return { dtype: d, ...model.variants[d] };
 }
 
 /** Variants usable on a backend: fp16-based ones need WebGPU. */
 export function variantsFor(model, backend) {
-  return Object.entries(model.variants).filter(([d]) => backend === 'webgpu' || !d.includes('f16')).map(([dtype, bytes]) => ({ dtype, bytes }));
+  return Object.entries(model.variants).filter(([d]) => backend === 'webgpu' || !d.includes('f16')).map(([dtype, v]) => ({ dtype, ...v }));
 }
 
 export function fmtMB(bytes) {

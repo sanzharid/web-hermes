@@ -20,7 +20,7 @@ if (process.env.HF_MIRROR) {
   mirrorUrl = `http://127.0.0.1:${process.env.HF_MIRROR_PORT ?? 48211}/`;
   console.log('serving HF mirror at', mirrorUrl);
 }
-const server = await createServer({ configFile: 'vite.config.js', server: { port: Number(process.env.PORT ?? 4173), strictPort: true, host: '127.0.0.1' }, logLevel: 'error' });
+const server = await createServer({ configFile: 'vite.config.js', server: { port: Number(process.env.PORT ?? 4173), strictPort: true, host: '127.0.0.1', hmr: false }, logLevel: 'error' });
 await server.listen();
 const url = server.resolvedUrls.local[0];
 const userDataDir = process.env.PROFILE_DIR ?? new URL('../.bench-profile', import.meta.url).pathname; // persistent: keeps the 850 MB weight cache between runs

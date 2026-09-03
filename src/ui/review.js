@@ -42,8 +42,8 @@ export function renderReview(root, store) {
     store.set({ plan: { ...plan, decisions } });
   }
 
-  const table = h('table', { class: 'files' },
-    h('thead', null, h('tr', null, h('th', { class: 'mark' }), h('th', null, 'From'), h('th'), h('th', null, 'To'), h('th', null, 'Reason'))),
+  const table = h('table', { class: 'files review' },
+    h('thead', null, h('tr', null, h('th', { class: 'mark' }), h('th', { class: 'path' }, 'From'), h('th', { class: 'arrow' }), h('th', { class: 'path' }, 'To'), h('th', null, 'Reason'))),
     tbody,
   );
   const wrap = h('div', { class: 'tablewrap', tabIndex: 0 }, rows.length ? table : h('div', { class: 'empty' }, 'Nothing to review. Every proposed change was a no-op.'));

@@ -56,7 +56,7 @@ export class TransformersAdapter {
     this.model = model;
     this.variant = variant;
     await new Promise((resolve, reject) => {
-      const id = this._call({ type: 'init', hf: model.hf, dtype: variant.dtype, device: this.backend, ortBase: this.ortBase, threads: this.threads, remoteHost: this.remoteHost }, (m) => {
+      const id = this._call({ type: 'init', hf: model.hf, dtype: variant.dtype, external: variant.external ?? null, device: this.backend, ortBase: this.ortBase, threads: this.threads, remoteHost: this.remoteHost }, (m) => {
         if (m.type === 'progress') onProgress?.(m);
         else if (m.type === 'ready') { this.pending.delete(id); this.loadInfo = m.info; this.ready = true; resolve(); }
         else if (m.type === 'error') { this.pending.delete(id); reject(new Error(m.message)); }

@@ -54,11 +54,11 @@ export function renderWork(root, store) {
         h('td', { class: 'name', title: f.path }, f.kind === 'directory' ? `${f.path}/` : f.path),
         h('td', { class: 'num' }, f.kind === 'file' ? fmtBytes(f.size) : ''),
         h('td', { class: 'num' }, f.kind === 'file' ? fmtDate(f.lastModified) : ''),
-        h('td', { class: 'num' }, f.ext),
+        h('td', { class: 'num ext' }, f.ext),
       ));
     }
     left.append(h('div', { class: 'tablewrap' }, h('table', { class: 'files' },
-      h('thead', null, h('tr', null, h('th', { class: 'check' }), h('th', null, 'Name'), h('th', { style: { textAlign: 'right' } }, 'Size'), h('th', { style: { textAlign: 'right' } }, 'Modified'), h('th', { style: { textAlign: 'right' } }, 'Ext'))),
+      h('thead', null, h('tr', null, h('th', { class: 'check' }), h('th', null, 'Name'), h('th', { class: 'num', style: { textAlign: 'right' } }, 'Size'), h('th', { class: 'num', style: { textAlign: 'right' } }, 'Modified'), h('th', { class: 'num ext', style: { textAlign: 'right' } }, 'Ext'))),
       tbody,
     )));
   }

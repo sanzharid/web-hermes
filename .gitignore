@@ -4,3 +4,4 @@ dist
 *.log
 public/ort
 .bench-profile
+shots

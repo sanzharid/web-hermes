@@ -32,7 +32,7 @@ async function unload() {
   model = null; tokenizer = null; loaded = null;
 }
 
-async function init({ id, hf, dtype, device, ortBase, threads, remoteHost }) {
+async function init({ id, hf, dtype, device, ortBase, threads, remoteHost, external }) {
   if (remoteHost) env.remoteHost = remoteHost; // test mirrors only; production always uses the Hugging Face host
   if (loaded && loaded.hf === hf && loaded.dtype === dtype && loaded.device === device) { post({ type: 'ready', id, info: loaded }); return; }
   await unload();
@@ -64,7 +64,8 @@ async function init({ id, hf, dtype, device, ortBase, threads, remoteHost }) {
   };
   const t0 = performance.now();
   tokenizer = await AutoTokenizer.from_pretrained(hf, { progress_callback });
-  model = await AutoModelForCausalLM.from_pretrained(hf, { device, dtype, progress_callback });
+  // `external` is the number of external weight files; passed explicitly because some repo configs key it wrongly.
+  model = await AutoModelForCausalLM.from_pretrained(hf, { device, dtype, progress_callback, ...(external ? { use_external_data_format: external } : {}) });
   loaded = { hf, dtype, device, loadMs: Math.round(performance.now() - t0), threads: onnx.wasm.numThreads ?? null };
   post({ type: 'ready', id, info: loaded });
 }
