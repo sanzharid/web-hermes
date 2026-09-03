@@ -268,48 +268,52 @@ The service worker precaches only the app shell (685 KB). The ONNX Runtime WASM 
 the first model load and cached then. Offline still works once a model has been loaded, which
 the offline audit verifies.
 
-### GitHub Pages from a branch (works with Actions disabled)
+### GitHub Pages, published from the `gh-pages` branch
 
-The built site is already pushed to the **`gh-pages`** branch. Turn it on once:
-Settings, Pages, Source **Deploy from a branch**, branch `gh-pages`, folder `/ (root)`.
-The site then lands at `https://sanzharid.github.io/web-hermes/`.
+**Live at https://sanzharid.github.io/web-hermes/.** Pages enabled itself when the branch was
+first pushed, so nothing needed flipping; Settings, Pages should read Source **Deploy from a
+branch**, branch `gh-pages`, folder `/ (root)`.
 
-This route runs none of the workflows in this repository, which is what made it work while the
-account was locked. Every *user* workflow run failed in about three seconds before any step
-executed, with the annotation:
+`.github/workflows/pages.yml` runs the unit tests, builds, and force-pushes `dist/` onto
+`gh-pages` on every push to `main`. Pushing the branch is what publishes the site: GitHub's own
+`pages-build-deployment` workflow picks the change up.
 
-> The job was not started because your account is locked due to a billing issue.
-
-That is an account-level lock, so it hit every workflow equally, Cloudflare and Pages alike, and
-no change to a workflow file could get around it.
-
-Pushing to `gh-pages` instead triggers GitHub's own `pages-build-deployment` workflow, which kept
-running normally throughout the lock: the site was verified serving all its files, the 12.9 MB
-WASM included, after the lock was confirmed. Note that this system workflow *is* metered as
-Actions Linux minutes (the usage report attributed 7 minutes to it for three deploys), so
-"branch deploys use no Actions minutes" would be wrong. On a public repository those minutes are
-discounted to a net of zero, which is why the whole line item cost nothing.
-
-Clearing the lock is a billing action on the account (Settings, Billing and licensing). Once it
-is cleared, the workflows below start working with no code change.
-
-**The site is live at https://sanzharid.github.io/web-hermes/.** Pages enabled itself when the
-branch was pushed, so no setting needed flipping. Confirm under Settings, Pages that the source
-reads `gh-pages` / `(root)`.
-
-To publish a new build later:
+To publish by hand instead, or when you want to skip CI:
 
 ```bash
 npm run deploy:pages
 ```
 
-That rebuilds, then force-pushes `dist/` onto `gh-pages` as a single-commit orphan branch, so
-the branch only ever holds the current build.
+Both routes do the same thing, and both leave `gh-pages` holding exactly one commit containing
+the current build.
 
-`.github/workflows/pages.yml` does the same thing through Actions and will start working by
-itself once the billing block is lifted. If you enable it, switch Settings, Pages, Source to
-**GitHub Actions**, and stop using `npm run deploy:pages`, or the two will fight over the same
-site.
+#### Why the branch, and not the github-pages environment
+
+The obvious workflow uses `actions/deploy-pages` with the `github-pages` deployment environment.
+That environment restricts deployments to the repository's **default branch**, and this
+repository's default is still `claude/sift-ondevice-file-ops-rrc300`, so a push to `main` was
+rejected with:
+
+> Branch "main" is not allowed to deploy to github-pages due to environment protection rules.
+
+Pushing the branch sidesteps the environment entirely and needs no repository settings changed.
+If you later make `main` the default branch and prefer the native path, switch Settings, Pages,
+Source to **GitHub Actions** and rewrite this workflow around `actions/deploy-pages`; do not run
+both, or they will fight over the same site.
+
+#### Cost
+
+`pages-build-deployment` is metered as Actions Linux minutes, so "branch deploys use no Actions
+minutes" would be wrong: the account usage report attributed 7 minutes to this repository for
+three deploys. On a public repository those minutes are discounted to a net of zero, which is
+why the line item cost nothing.
+
+That system workflow also kept running while the account was locked for billing, when every
+workflow in this repository failed within seconds, before any step executed:
+
+> The job was not started because your account is locked due to a billing issue.
+
+#### Isolation headers
 
 Pages cannot set response headers, so it cannot send COOP/COEP, and without those there is no
 `SharedArrayBuffer` and WASM inference is stuck on one thread. The app handles that itself: the

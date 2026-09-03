@@ -1,22 +1,21 @@
-name: Deploy to GitHub Pages
+name: Build and publish to gh-pages
 
 on:
   push:
     branches: [main]
   workflow_dispatch:
 
+# Only contents:write is needed: this pushes the built site to a branch rather than using the
+# github-pages deployment environment, which restricts deploys to the repository's default branch.
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
-# Never run two deploys at once, but let a queued one finish rather than cancelling it.
 concurrency:
-  group: pages
+  group: gh-pages
   cancel-in-progress: false
 
 jobs:
-  build:
+  publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,24 +34,20 @@ jobs:
       - name: Build
         run: npm run build
 
-      # enablement: true turns Pages on via the API if it has never been enabled, so the first
-      # run does not need the Settings toggle flipped by hand.
-      - uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      # GitHub Pages cannot set COOP/COEP response headers. The app's service worker adds them
-      # itself and reloads once on a first visit, which the offline audit verifies.
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      # dist/ becomes its own single-commit repository and is force-pushed, so gh-pages only ever
+      # holds the current build. dist/.nojekyll stops Pages running Jekyll over the underscore paths.
+      - name: Publish dist/ to gh-pages
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -f dist/index.html
+          test -f dist/.nojekyll
+          cd dist
+          git init -q -b gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          echo "publishing $(git diff --cached --name-only | wc -l) files"
+          git commit -q -m "Built site from ${GITHUB_SHA:0:7}"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:gh-pages
