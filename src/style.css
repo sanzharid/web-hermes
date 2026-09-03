@@ -54,6 +54,9 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-st
 
 .screen { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .split { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; }
+/* Agent-first: the console is the main surface, files/rules are the panel beside it. */
+.split.agent-first { grid-template-columns: minmax(0, 1fr) 420px; }
+.split.agent-first > .left { overflow: auto; }
 .split > .left { min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
 .split > .right { min-width: 0; overflow: auto; padding: 12px; background: var(--panel); }
 .toolbar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--line); background: var(--panel); flex: none; font-variant-numeric: tabular-nums; }
@@ -63,6 +66,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-st
 .tablewrap { flex: 1; min-height: 0; overflow: auto; }
 table.files { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; table-layout: fixed; }
 table.files th.num, table.files td.num { width: 120px; }
+.split.agent-first table.files th.num, .split.agent-first table.files td.num { width: 72px; }
 table.files th.ext, table.files td.ext { width: 64px; }
 table.files.review th.path, table.files.review td.path { width: 34%; }
 table.files.review th.reason { width: auto; }

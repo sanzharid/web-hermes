@@ -4,8 +4,10 @@ import { RULE_DEFS, defaultRule, applyRules } from '../plan/rules.js';
 import { openPlan } from '../plan/build.js';
 import { enrichFiles } from '../plan/enrich.js';
 import { renderModelPanel } from './modelpanel.js';
+import { renderAgent } from './agent.js';
 
-let tab = 'rules';
+// The agent is the default surface; files and rules are the side panel it acts on.
+let tab = 'files';
 
 export function selectedFiles(state) {
   const files = state.listing.filter((f) => f.kind === 'file');
@@ -21,17 +23,32 @@ export function renderWork(root, store) {
 
   const left = h('div', { class: 'left' });
   const right = h('div', { class: 'right panel' });
-  root.append(h('div', { class: 'split' }, left, right));
+  root.append(h('div', { class: 'split agent-first' }, left, right));
+
+  renderAgent(left, store);
+
+  right.append(h('div', { class: 'tabs' },
+    h('button', { class: tab === 'files' ? 'active' : '', onclick: () => { tab = 'files'; store.set({}); } }, `Files (${files.length})`),
+    h('button', { class: tab === 'rules' ? 'active' : '', onclick: () => { tab = 'rules'; store.set({}); } }, 'Rules'),
+    h('button', { class: tab === 'instruction' ? 'active' : '', onclick: () => { tab = 'instruction'; store.set({}); } }, 'Rename'),
+  ));
+  if (tab === 'files') renderFilePanel(right, store, files, selected);
+  else if (tab === 'rules') renderRules(right, store, selected);
+  else renderModelPanel(right, store, selected);
+}
+
+function renderFilePanel(right, store, files, selected) {
+  const state = store.get();
 
   // ---- toolbar ----
   const recursive = h('input', { type: 'checkbox', checked: state.recursive, onchange: async (e) => {
     store.set({ recursive: e.target.checked, selection: null });
     await refreshListing(store);
   } });
-  left.append(h('div', { class: 'toolbar' },
-    h('span', null, `${plural(files.length, 'file')}, ${selected.length} selected`),
+  right.append(h('div', { class: 'toolbar' },
+    h('span', null, `${selected.length}/${files.length} selected`),
     h('span', { class: 'spacer' }),
-    h('label', null, recursive, ' include subfolders (one level)'),
+    h('label', { title: 'include subfolders (one level)' }, recursive, ' subfolders'),
     h('button', { class: 'small', onclick: () => store.set({ selection: null }) }, 'All'),
     h('button', { class: 'small', onclick: () => store.set({ selection: new Set() }) }, 'None'),
     h('button', { class: 'small', onclick: () => refreshListing(store) }, 'Refresh'),
@@ -39,7 +56,7 @@ export function renderWork(root, store) {
 
   // ---- table ----
   if (!state.listing.length) {
-    left.append(h('div', { class: 'empty' }, 'This folder is empty. Pick another one, or add files and refresh.'));
+    right.append(h('div', { class: 'empty' }, 'This folder is empty. Pick another one, or add files and refresh.'));
   } else {
     const tbody = h('tbody');
     for (const f of state.listing) {
@@ -49,28 +66,21 @@ export function renderWork(root, store) {
         if (e.target.checked) sel.add(f.path); else sel.delete(f.path);
         store.set({ selection: sel.size === files.length ? null : sel });
       } }) : null;
-      tbody.append(h('tr', { class: `${f.kind === 'directory' ? 'dir' : ''} ${isSel ? 'selected' : ''}` },
+      tbody.append(h('tr', {
+        class: `${f.kind === 'directory' ? 'dir' : ''} ${isSel ? 'selected' : ''}`,
+        title: f.kind === 'file' ? `${f.path}\n${fmtBytes(f.size)} · ${fmtDate(f.lastModified)}` : f.path,
+      },
         h('td', { class: 'check' }, cb),
-        h('td', { class: 'name', title: f.path }, f.kind === 'directory' ? `${f.path}/` : f.path),
+        h('td', { class: 'name' }, f.kind === 'directory' ? `${f.path}/` : f.path),
         h('td', { class: 'num' }, f.kind === 'file' ? fmtBytes(f.size) : ''),
-        h('td', { class: 'num' }, f.kind === 'file' ? fmtDate(f.lastModified) : ''),
-        h('td', { class: 'num ext' }, f.ext),
       ));
     }
-    left.append(h('div', { class: 'tablewrap' }, h('table', { class: 'files' },
-      h('thead', null, h('tr', null, h('th', { class: 'check' }), h('th', null, 'Name'), h('th', { class: 'num', style: { textAlign: 'right' } }, 'Size'), h('th', { class: 'num', style: { textAlign: 'right' } }, 'Modified'), h('th', { class: 'num ext', style: { textAlign: 'right' } }, 'Ext'))),
+    right.append(h('div', { class: 'tablewrap' }, h('table', { class: 'files' },
+      h('thead', null, h('tr', null, h('th', { class: 'check' }), h('th', null, 'Name'), h('th', { class: 'num', style: { textAlign: 'right' } }, 'Size'))),
       tbody,
     )));
   }
 
-  // ---- right panel ----
-  const tabs = h('div', { class: 'tabs' },
-    h('button', { class: tab === 'rules' ? 'active' : '', onclick: () => { tab = 'rules'; store.set({}); } }, 'Rules'),
-    h('button', { class: tab === 'model' ? 'active' : '', onclick: () => { tab = 'model'; store.set({}); } }, 'Instruction'),
-  );
-  right.append(tabs);
-  if (tab === 'rules') renderRules(right, store, selected);
-  else renderModelPanel(right, store, selected);
 }
 
 function renderRules(right, store, selected) {

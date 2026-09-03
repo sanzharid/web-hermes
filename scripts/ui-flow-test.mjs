@@ -69,8 +69,8 @@ await page.evaluate(async () => {
   };
 });
 await page.waitForSelector('table.files');
-await page.click('.tabs button:has-text("Instruction")');
-await page.fill('textarea', 'tidy these up and group invoices');
+await page.click('.tabs button:has-text("Rename")');
+await page.fill('.right textarea', 'tidy these up and group invoices');
 await page.click('button:has-text("Interpret")');
 try { await page.waitForSelector('.spec textarea', { timeout: 15000 }); } catch (e) {
   const st = await page.evaluate(() => { const s = window.__sift.store.get(); return { screen: s.screen, notice: s.notice, job: !!s.job, spec: s.spec, ready: window.__sift.runtime.ready, model: s.model }; });
@@ -92,11 +92,11 @@ check(plan.accepted.some(([t]) => t === 'create_folder') && plan.accepted.some((
 check(plan.rejected.some(([to, why]) => to === 'bad:name.txt' && /reserved/.test(why)), 'invalid name caught by validation');
 check(/not in the batch/.test(plan.notice ?? ''), `unmatched file index reported: ${plan.notice}`);
 await page.keyboard.press('Escape');
-await page.waitForSelector('table.files');
-await page.click('.tabs button:has-text("Instruction")');
-await page.click('.tabs button:has-text("Ask")');
-await page.fill('textarea', 'how many files?');
-await page.click('button:has-text("Run")');
+// The agent console is the main surface and is always present, whichever side tab is active.
+await page.waitForSelector('.left textarea');
+check(await page.locator('.left .toolbar b:has-text("Agent")').count() === 1, 'agent console is the default surface on the work screen');
+await page.fill('.left textarea', 'how many files?');
+await page.click('.left button:has-text("Run")');
 try { await page.waitForSelector('button:has-text("Review 1 queued change")', { timeout: 15000 }); } catch (e) {
   const st = await page.evaluate(() => { const s = window.__sift.store.get(); return { screen: s.screen, notice: s.notice, job: !!s.job, agent: s.agent, loop: sessionStorage.getItem('sift.loop')?.slice(0, 600), panel: document.querySelector('.right')?.innerText.slice(0, 400) }; });
   console.log('DEBUG ask:', JSON.stringify(st, null, 1)); throw e;

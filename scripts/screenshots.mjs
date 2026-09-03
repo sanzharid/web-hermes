@@ -23,7 +23,7 @@ await page.evaluate(async () => {
 await page.waitForSelector('table.files');
 await page.evaluate(() => window.__sift.store.set({ rules: [{ type: 'whitespace', separator: true }, { type: 'case', mode: 'title', extToo: false }, { type: 'sequence', start: 1, pad: 2, template: '{n} {stem}', sortBy: 'name' }] }));
 await page.screenshot({ path: `${out}/2-work.png` });
-await page.click('.tabs button:has-text("Instruction")');
+await page.click('.tabs button:has-text("Rename")');
 await page.screenshot({ path: `${out}/3-instruction.png` });
 await page.click('.tabs button:has-text("Rules")');
 await page.click('button:has-text("Preview changes")');
