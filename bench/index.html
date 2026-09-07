@@ -1,0 +1,37 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Sift CPU benchmark</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { font: 14px/1.5 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; color: #1f1f1d; background: #f4f4f2; }
+  code, pre { font-family: ui-monospace, Consolas, monospace; }
+  pre { background: #fff; border: 1px solid #d9d9d4; border-radius: 3px; padding: .6rem .8rem; overflow-x: auto; }
+  a.file { display: inline-block; font-size: 1.05rem; font-weight: 600; margin: .4rem 0; }
+  table { border-collapse: collapse; margin: .6rem 0; }
+  td, th { border-bottom: 1px solid #d9d9d4; padding: .3rem .8rem .3rem 0; text-align: left; }
+  .muted { color: #6b6b66; }
+</style>
+<h1>Sift CPU benchmark</h1>
+<p>One self-contained Python file. Open it, select all, paste into a file on the target machine.
+Pure ASCII, so it survives any clipboard.</p>
+<p><a class="file" href="./bench.py.txt">bench.py.txt</a></p>
+<p>Needs only <code>onnxruntime</code> and <code>numpy</code>, both prebuilt wheels &mdash; no C++ compiler,
+which is what rules out <code>llama-cpp-python</code>. The byte-level BPE tokenizer is included and
+uses the standard library alone.</p>
+<pre>python bench.py preflight   # does your package index have what is needed?
+python bench.py fetch       # download the model over plain HTTPS (~810 MB)
+python bench.py decode      # decode tok/s, with KV cache reuse
+python bench.py prefill     # prefill tok/s across context lengths
+python bench.py verify      # compare the tokenizer against `tokenizers`, if installed</pre>
+<p>Use <code>model_q4</code>, the default. Natively <code>q8</code> measured 20x slower &mdash; the reverse of the
+browser, where the two tied.</p>
+<h2>Reference numbers</h2>
+<p class="muted">Same weights both ways, 4-core Xeon with AVX-512 and VNNI. Your VDI will differ;
+that is the point of running it there.</p>
+<table>
+  <tr><th></th><th>Browser (WASM)</th><th>Native Python</th></tr>
+  <tr><td>decode, q4</td><td>0.71 tok/s</td><td>6&ndash;14 tok/s</td></tr>
+  <tr><td>prefill, warmed</td><td>~5&ndash;19 tok/s</td><td>~120&ndash;190 tok/s</td></tr>
+  <tr><td>decode, 1 vs 4 threads</td><td class="muted">&mdash;</td><td>no scaling (memory bound)</td></tr>
+</table>
+<p class="muted">Source also lives in the repository under <code>bench/</code>.</p>
