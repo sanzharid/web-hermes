@@ -5,9 +5,12 @@ import { openPlan } from '../plan/build.js';
 import { enrichFiles } from '../plan/enrich.js';
 import { renderModelPanel } from './modelpanel.js';
 import { renderAgent } from './agent.js';
+import { renderSearch } from './search.js';
 
 // The agent is the default surface; files and rules are the side panel it acts on.
 let tab = 'files';
+// Main surface: semantic search first, the agent one tab over.
+let mainTab = 'search';
 
 export function selectedFiles(state) {
   const files = state.listing.filter((f) => f.kind === 'file');
@@ -25,7 +28,13 @@ export function renderWork(root, store) {
   const right = h('div', { class: 'right panel' });
   root.append(h('div', { class: 'split agent-first' }, left, right));
 
-  renderAgent(left, store);
+  if (state.sideTab) { tab = state.sideTab; store.silent({ sideTab: null }); }
+  left.append(h('div', { class: 'tabs', style: { margin: '0', padding: '0 12px', background: 'var(--panel)' } },
+    h('button', { class: mainTab === 'search' ? 'active' : '', onclick: () => { mainTab = 'search'; store.set({}); } }, 'Search'),
+    h('button', { class: mainTab === 'agent' ? 'active' : '', onclick: () => { mainTab = 'agent'; store.set({}); } }, 'Agent'),
+  ));
+  if (mainTab === 'search') renderSearch(left, store);
+  else renderAgent(left, store);
 
   right.append(h('div', { class: 'tabs' },
     h('button', { class: tab === 'files' ? 'active' : '', onclick: () => { tab = 'files'; store.set({}); } }, `Files (${files.length})`),

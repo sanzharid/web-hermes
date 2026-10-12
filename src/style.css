@@ -143,3 +143,11 @@ table.files td.reason { color: var(--muted); font-size: 12px; white-space: norma
 .thinking { color: var(--muted); font-style: italic; }
 .checklist label { display: block; margin: 3px 0; }
 @media (max-width: 900px) { .split { grid-template-columns: 1fr; } .split > .right { border-top: 1px solid var(--line); } }
+.result { padding: 8px 0; border-bottom: 1px solid var(--line); }
+.result-head { display: flex; align-items: center; gap: 10px; }
+.result .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.result .bar { flex: none; width: 48px; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+.result .bar i { display: block; height: 100%; background: var(--accent); }
+.result .tag { flex: none; font-size: 11px; color: var(--muted); border: 1px solid var(--line-strong); border-radius: 3px; padding: 0 4px; }
+.result .num { flex: none; font-size: 12px; font-variant-numeric: tabular-nums; }
+.result .snippet { color: var(--muted); font-size: 12px; margin: 3px 0 0 58px; line-height: 1.4; }

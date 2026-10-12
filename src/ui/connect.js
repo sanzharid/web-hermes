@@ -1,6 +1,7 @@
 import { h, clear, plural, fmtDate } from './dom.js';
 import * as fs from '../fs/index.js';
 import { saveSettings } from '../settings.js';
+import { attachFolder, isModelCached, loadModel } from '../search/controller.js';
 
 export async function openFolder(store, id, handle) {
   const listing = await fs.listEntries(handle, { recursive: store.get().recursive });
@@ -8,6 +9,9 @@ export async function openFolder(store, id, handle) {
   await fs.rememberDirectory(id, handle);
   const settings = saveSettings({ ...store.get().settings, lastFolderId: id });
   store.set({ settings });
+  // Load the stored index for this folder; bring the model up in the background if it is cached.
+  attachFolder(store).catch(() => {});
+  isModelCached().then((c) => { if (c) loadModel(store).catch(() => {}); });
 }
 
 export async function refreshListing(store) {

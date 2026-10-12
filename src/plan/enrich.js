@@ -2,7 +2,7 @@
 
 import { readBytes, readExcerpt } from '../fs/index.js';
 
-const TEXT_EXT = new Set(['.txt', '.md', '.markdown', '.csv', '.tsv', '.json', '.log', '.html', '.htm', '.xml', '.yaml', '.yml', '.ini', '.cfg', '.js', '.mjs', '.ts', '.py', '.sh', '.bat', '.ps1', '.sql', '.rtf', '.tex', '.srt']);
+export const TEXT_EXT = new Set(['.txt', '.md', '.markdown', '.csv', '.tsv', '.json', '.log', '.html', '.htm', '.xml', '.yaml', '.yml', '.ini', '.cfg', '.js', '.mjs', '.ts', '.py', '.sh', '.bat', '.ps1', '.sql', '.rtf', '.tex', '.srt']);
 
 /**
  * Enrich files. Results are cached in store.enrichment (Map path -> facts).

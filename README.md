@@ -7,6 +7,49 @@ no API key, no account, no network after the model weights are cached.
 Static files, built with Vite. Chromium desktop only (File System Access API).
 Target: Windows VDI, ~16 GB RAM, probably no GPU.
 
+## Semantic search (primary surface)
+
+Describe what a file is about and Sift finds it by meaning, not by name. It uses
+[EmbeddingGemma 2](https://huggingface.co/google/embeddinggemma-2), text encoder only, through
+Transformers.js on the WASM/CPU backend. That's 206 MB downloaded once (q4 weights plus tokenizer), and it
+works with the network off afterwards. The vision and audio encoders (~1.3 GB) are never fetched.
+
+**Why this suits a CPU-only machine when the agent did not:** an embedding is one forward pass. There
+is no token-by-token decode, so the 0.7 tok/s bottleneck that made the agent impractical does not
+apply. Measured in headless Chromium on a 4-core CPU with software-only WebGPU:
+
+| | |
+| --- | --- |
+| model load | 7–11 s from cache |
+| query | ~250–400 ms |
+| indexing | ~200 tok/s, about 2 s per 400-token chunk (short files go faster) |
+| retrieval, paraphrased queries | 12/12 top-1 on the test folder (`scripts/search-test.mjs`) |
+
+The queries share no key words with their targets. "how much do we owe for the office furniture" finds
+an invoice for chairs and desks; "who cleans the office and how do we cancel" finds a Word contract;
+"slides about next quarter plans" finds a PowerPoint. One of the twelve is a near tie (0.667 against
+0.660), so expect the right file in the top few rather than always first.
+
+**How it works**
+
+- Each file becomes one document: its kind ("presentation slides", "spreadsheet", ...), its name as
+  words, its folder, metadata (PDF title and author, EXIF date and camera), and the first ~1,800
+  characters of its text. That is formatted with the model card's task prefixes
+  (`title: … | text: …` for documents, `task: search result | query: …` for queries).
+- Text comes from plain-text formats, and from **Word, PowerPoint and Excel** via the browser's built-in
+  `DecompressionStream`, with no extra library (`src/search/office.js`, tested on genuine files written by
+  python-docx, python-pptx and openpyxl).
+- Vectors are Matryoshka-truncated to 256 dimensions (Google reports minimal loss down to 256d) and
+  stored in IndexedDB per folder. A file is re-embedded only when its size or modification time changes.
+  Each batch is saved as it completes, so stopping mid-index loses nothing.
+- Results can be selected into the Files panel, where Rules and Rename act on them, and the agent has a
+  `search_files` tool over the same index.
+
+**Not yet covered:** PDF *contents*. PDFs are matched on name, title and author only and are marked
+"name only" in results. Reading PDF text needs a real parser (pdf.js, about 1 MB, which also works offline).
+That is the obvious next step for document-heavy folders. Long documents are represented by their opening
+text; deep search inside long files would need several chunks per file.
+
 ## Status
 
 | Step | State | Checkpoint |
@@ -239,6 +282,7 @@ undo). Rules run without a model. Model download is background; progress is show
 
 ```
 npm install          # also copies the ORT WASM runtime into public/ort
+                     # (behind a proxy that blocks nuget.org: ONNXRUNTIME_NODE_INSTALL=skip npm install)
 npm run dev
 npm run build        # dist/ with a generated sw.js
 npm test             # unit tests: names, validation, rules, LFM parsing, harness loop
@@ -246,6 +290,8 @@ node scripts/browser-test.mjs           # headless e2e over OPFS: 200 adversaria
 node scripts/bench-model.mjs [modelId]  # load the model, measure tokens/s
 node scripts/plan-test.mjs [modelId]    # 40 mixed files through the execution and interpretation passes
 node scripts/offline-test.mjs           # service worker, COOP/COEP injection, shell and model offline
+node scripts/search-test.mjs            # semantic search end to end with the real model (HF_MIRROR=<dir>)
+node scripts/embed-bench.mjs            # embedding load time, throughput, retrieval sanity check
 npm run test:live                       # drive the deployed site: boot, SW, isolation, env check
 ```
 

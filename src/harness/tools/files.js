@@ -44,6 +44,19 @@ export function registerFileTools(registry) {
     },
   });
   registry.register({
+    name: 'search_files',
+    description: 'Find files by meaning rather than by name: describe what the file is about. Returns the best matches with a short snippet. Arguments: query, limit (default 5).',
+    schema: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'integer' } }, required: ['query'] },
+    handler: async (args, ctx) => {
+      const { searchIndex, searchEmbedder } = await import('../../search/controller.js');
+      const index = searchIndex();
+      const embedder = searchEmbedder();
+      if (!index?.entries.length || !embedder) return { error: 'the semantic index is not built for this folder; use list_files instead' };
+      const { results } = await index.search(String(args.query ?? ''), embedder, Math.min(Number(args.limit) || 5, 15));
+      return { results: results.map((r) => ({ path: r.path, score: Number(r.score.toFixed(3)), snippet: r.snippet.slice(0, 160) })) };
+    },
+  });
+  registry.register({
     name: 'rename',
     description: 'Rename a file in place. Arguments: from (current path), to (new name or path), reason.',
     schema: { type: 'object', properties: { from: { type: 'string' }, to: { type: 'string' }, reason: { type: 'string' } }, required: ['from', 'to'] },

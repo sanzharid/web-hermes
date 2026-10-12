@@ -4,6 +4,7 @@ import { chromium } from 'playwright-core';
 import http from 'node:http';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { join, extname } from 'node:path';
+import { createReadStream } from 'node:fs';
 
 const CHROME = process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css', '.wasm': 'application/wasm', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.svg': 'image/svg+xml' };
@@ -18,6 +19,16 @@ const server = http.createServer((req, res) => {
 });
 await new Promise((r) => server.listen(Number(process.env.PORT ?? 4173), '127.0.0.1', r)); // fixed port: Cache API storage is per origin, so the bench and offline runs must share it
 const url = `http://127.0.0.1:${server.address().port}/`;
+const MIRROR_PORT = Number(process.env.HF_MIRROR_PORT ?? 48211);
+const MIRROR = existsSync(process.env.HF_MIRROR ?? '') && statSync(process.env.HF_MIRROR).isDirectory() ? `http://127.0.0.1:${MIRROR_PORT}/` : null;
+if (MIRROR) {
+  http.createServer((req, res) => {
+    const f = join(process.env.HF_MIRROR, decodeURIComponent(new URL(req.url, 'http://x').pathname));
+    if (!existsSync(f) || statSync(f).isDirectory()) { res.statusCode = 404; res.end(); return; }
+    res.setHeader('Content-Length', statSync(f).size); res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    createReadStream(f).pipe(res);
+  }).listen(MIRROR_PORT, '127.0.0.1');
+}
 const userDataDir = process.env.PROFILE_DIR ?? new URL('../.bench-profile', import.meta.url).pathname;
 const context = await chromium.launchPersistentContext(userDataDir, { executablePath: CHROME, headless: true, proxy: process.env.HTTPS_PROXY ? { server: process.env.HTTPS_PROXY, bypass: 'localhost,127.0.0.1' } : undefined, env: { ...process.env, LANG: 'C.UTF-8' } });
 let failures = 0;
@@ -57,6 +68,17 @@ await new Promise((r) => setTimeout(r, 3000));
 const stable = await page.evaluate(() => performance.now());
 check(stable > before, 'no reload loop once isolated (page context survived 3s)');
 
+// Search model: load it once while online so its weights land in the Cache API.
+let searchOnline = null;
+if (MIRROR) {
+  searchOnline = await page.evaluate(async (mirror) => {
+    const { Embedder } = await window.__sift.embedderModule();
+    const e = new Embedder({ ortBase: new URL('ort/', document.baseURI).href, threads: crossOriginIsolated ? 4 : 1, remoteHost: mirror });
+    try { await e.init(); const r = await e.embed(['task: search result | query: warm up']); e.terminate(); return { ok: true, dims: r.vectors[0].length }; } catch (err) { return { ok: false, error: err.message }; }
+  }, MIRROR);
+  check(searchOnline.ok, `search model loads online first: ${JSON.stringify(searchOnline)}`);
+}
+
 await context.setOffline(true);
 await page.reload();
 try {
@@ -81,6 +103,21 @@ const r = await page.evaluate(async ({ id, mirror }) => {
     return { ok: true, ms: Math.round(performance.now() - t0), content: out.content, tps: out.stats.tps };
   } catch (e) { return { ok: false, error: e.message }; }
 }, { id: modelId, mirror: process.env.HF_MIRROR ? `http://127.0.0.1:${process.env.HF_MIRROR_PORT ?? 48211}/` : null });
+if (MIRROR && searchOnline?.ok) {
+  // The mirror server is still up, but the browser is offline: any network fetch fails, so this
+  // only passes if every file the model needs comes out of the Cache API.
+  const off = await page.evaluate(async (mirror) => {
+    const { Embedder, queryText, documentText } = await window.__sift.embedderModule();
+    const e = new Embedder({ ortBase: new URL('ort/', document.baseURI).href, threads: crossOriginIsolated ? 4 : 1, remoteHost: mirror });
+    try {
+      await e.init();
+      const { vectors } = await e.embed([queryText('rent for the flat'), documentText('lease', 'monthly rent 1200 EUR'), documentText('soup', 'onion soup recipe')]);
+      const d = (a, b) => a.reduce((s, x, i) => s + x * b[i], 0);
+      return { ok: true, online: navigator.onLine, lease: d(vectors[0], vectors[1]), soup: d(vectors[0], vectors[2]) };
+    } catch (err) { return { ok: false, error: err.message, online: navigator.onLine }; }
+  }, MIRROR);
+  check(off.ok && !off.online && off.lease > off.soup, `search model loads and ranks with the network off: ${JSON.stringify(off)}`);
+}
 if (r.skipped) console.log(`skip - model offline load: ${r.skipped}`, JSON.stringify(r, null, 1));
 else check(r.ok, `model loads and generates with the network off: ${JSON.stringify(r)}`);
 await context.close();

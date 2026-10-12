@@ -11,6 +11,7 @@ import { renderInterpret } from './ui/interpret.js';
 import { loadSettings } from './settings.js';
 import { runEnvironmentCheck } from './runtime/envcheck.js';
 import { getRuntime } from './runtime/index.js';
+import { searchInitial } from './search/controller.js';
 
 const store = createStore({
   screen: 'connect',
@@ -28,7 +29,8 @@ const store = createStore({
   env: null,
   settings: loadSettings(),
   notice: null,
-  pickerError: null, // set when showDirectoryPicker is refused, so Environment can report it
+  pickerError: null,
+  search: searchInitial, // set when showDirectoryPicker is refused, so Environment can report it
 });
 
 window.__sift = { store }; // for browser tests
@@ -66,12 +68,15 @@ function topbar(state) {
   const m = state.model;
   const pill = m.status === 'ready' ? `model: ${m.id} · ${m.backend}${m.tps ? ` · ${m.tps.toFixed(1)} tok/s` : ''}`
     : m.status === 'loading' ? `loading ${m.id}${m.progress ? ` · ${m.progress.text}` : ''}`
-    : m.status === 'error' ? `model error` : 'no model';
+    : m.status === 'error' ? `model error` : null;
+  const sm = state.search?.model;
+  const searchPill = sm === 'ready' ? 'search ready' : sm === 'loading' ? 'loading search model' : sm === 'error' ? 'search model error' : null;
   return h('div', { class: 'topbar' },
     h('span', { class: 'brand' }, 'Sift'),
     state.folder ? h('span', { class: 'crumb' }, h('b', null, state.folder.name), ` · ${plural(files, 'file')}${state.recursive ? ' (one level deep)' : ''}`) : h('span', { class: 'crumb' }, 'No folder connected'),
     h('span', { class: 'spacer' }),
-    h('span', { class: `status-pill ${m.status}` }, pill),
+    searchPill ? h('span', { class: `status-pill ${sm === 'ready' ? 'ready' : sm}` }, searchPill) : null,
+    pill ? h('span', { class: `status-pill ${m.status}` }, `agent: ${pill}`) : null,
     h('nav', null,
       nav('connect', 'Folder'),
       state.folder && nav('work', 'Files'),
@@ -93,6 +98,7 @@ const runtime = getRuntime();
 runtime.attach(store);
 runtime.modelsModule = () => import('./runtime/models.js');
 window.__sift.runtime = runtime;
+window.__sift.embedderModule = () => import('./runtime/embedder.js'); // test hook
 
 // On a host that cannot set COOP/COEP itself (GitHub Pages), the service worker supplies them, but
 // only on responses it serves. The very first load is therefore not cross-origin isolated, so

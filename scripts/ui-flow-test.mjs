@@ -92,9 +92,11 @@ check(plan.accepted.some(([t]) => t === 'create_folder') && plan.accepted.some((
 check(plan.rejected.some(([to, why]) => to === 'bad:name.txt' && /reserved/.test(why)), 'invalid name caught by validation');
 check(/not in the batch/.test(plan.notice ?? ''), `unmatched file index reported: ${plan.notice}`);
 await page.keyboard.press('Escape');
-// The agent console is the main surface and is always present, whichever side tab is active.
+// Search is the default main surface; the agent is one tab over.
+await page.waitForSelector('.left .toolbar b:has-text("Search")');
+check(await page.locator('.left .tabs button.active:has-text("Search")').count() === 1, 'search is the default surface on the work screen');
+await page.click('.left .tabs button:has-text("Agent")');
 await page.waitForSelector('.left textarea');
-check(await page.locator('.left .toolbar b:has-text("Agent")').count() === 1, 'agent console is the default surface on the work screen');
 await page.fill('.left textarea', 'how many files?');
 await page.click('.left button:has-text("Run")');
 try { await page.waitForSelector('button:has-text("Review 1 queued change")', { timeout: 15000 }); } catch (e) {
