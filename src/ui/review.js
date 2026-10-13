@@ -52,7 +52,8 @@ export function renderReview(root, store) {
   const progress = h('div', { class: 'progress', hidden: true }, h('div', { style: { width: '0%' } }));
   const err = h('div', { class: 'note warn', hidden: true });
 
-  const applyBtn = h('button', { class: 'primary', disabled: !accepted.length }, `Apply ${plural(accepted.length, 'change')}`);
+  const readOnly = !!state.folder.readOnly;
+  const applyBtn = h('button', { class: 'primary', disabled: !accepted.length || readOnly, title: readOnly ? 'This folder was opened read-only' : null }, readOnly ? 'Read-only folder: cannot apply' : `Apply ${plural(accepted.length, 'change')}`);
   const confirmBtn = h('button', { class: 'primary danger', hidden: true }, `Confirm: write ${plural(accepted.length, 'change')} to ${state.folder.name}`);
   const cancelBtn = h('button', { hidden: true }, 'Cancel');
   const backBtn = h('button', { onclick: () => store.set({ screen: 'work' }) }, '← Back');
@@ -110,7 +111,7 @@ export function renderReview(root, store) {
     if (e.key === 'j' || e.key === 'ArrowDown') { cursor = Math.min(rows.length - 1, cursor + 1); e.preventDefault(); repaintCursor(); }
     else if (e.key === 'k' || e.key === 'ArrowUp') { cursor = Math.max(0, cursor - 1); e.preventDefault(); repaintCursor(); }
     else if (e.key === 'x' || e.key === ' ') { const row = rows[cursor]; if (row?.kind === 'op') toggle(row.i); e.preventDefault(); }
-    else if (e.key === 'Enter') { e.preventDefault(); if (!applying && accepted.length) { if (!confirming) applyBtn.click(); else apply(); } }
+    else if (e.key === 'Enter') { e.preventDefault(); if (!applying && accepted.length && !readOnly) { if (!confirming) applyBtn.click(); else apply(); } }
     else if (e.key === 'Escape') { if (confirming) cancelBtn.click(); else store.set({ screen: 'work' }); }
   }
   function repaintCursor() {

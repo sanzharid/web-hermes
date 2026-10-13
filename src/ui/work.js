@@ -41,6 +41,9 @@ export function renderWork(root, store) {
     h('button', { class: tab === 'rules' ? 'active' : '', onclick: () => { tab = 'rules'; store.set({}); } }, 'Rules'),
     h('button', { class: tab === 'instruction' ? 'active' : '', onclick: () => { tab = 'instruction'; store.set({}); } }, 'Rename'),
   ));
+  if (state.folder.readOnly && tab !== 'files') {
+    right.append(h('div', { class: 'note' }, 'This folder was opened read-only, for searching. You can preview changes, but to apply them open a folder with ', h('b', null, 'Pick a folder'), ' instead.'));
+  }
   if (tab === 'files') renderFilePanel(right, store, files, selected);
   else if (tab === 'rules') renderRules(right, store, selected);
   else renderModelPanel(right, store, selected);

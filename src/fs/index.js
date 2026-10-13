@@ -292,6 +292,9 @@ export async function createFolder(root, path) {
 export async function applyPlan(root, ops, { onProgress, signal, journal = true, label = '' } = {}) {
   const results = [];
   if (!ops.length) return { journal: null, results, applied: 0, stopped: false, error: null };
+  if (root.readOnly) {
+    return { journal: null, results, applied: 0, stopped: true, error: 'This folder was opened read-only (search only); nothing can be written to it.' };
+  }
 
   const createdAt = new Date().toISOString();
   let journalName = null;

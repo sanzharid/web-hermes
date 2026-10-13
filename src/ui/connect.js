@@ -2,13 +2,19 @@ import { h, clear, plural, fmtDate } from './dom.js';
 import * as fs from '../fs/index.js';
 import { saveSettings } from '../settings.js';
 import { attachFolder, isModelCached, loadModel } from '../search/controller.js';
+import { pickFolderReadOnly, isReadOnly } from '../fs/readonly.js';
 
 export async function openFolder(store, id, handle) {
+  const readOnly = isReadOnly(handle);
   const listing = await fs.listEntries(handle, { recursive: store.get().recursive });
-  store.set({ folder: { id, handle, name: handle.name }, listing, selection: null, plan: null, result: null, screen: 'work', notice: null });
-  await fs.rememberDirectory(id, handle);
-  const settings = saveSettings({ ...store.get().settings, lastFolderId: id });
-  store.set({ settings });
+  store.set({ folder: { id, handle, name: handle.name, readOnly }, listing, selection: null, plan: null, result: null, screen: 'work', notice: null });
+  // A read-only upload cannot be stored and re-opened; it is picked again each session. Its search
+  // index is still kept, keyed by the folder name, so re-picking it re-embeds only what changed.
+  if (!readOnly) {
+    await fs.rememberDirectory(id, handle);
+    const settings = saveSettings({ ...store.get().settings, lastFolderId: id });
+    store.set({ settings });
+  }
   // Load the stored index for this folder; bring the model up in the background if it is cached.
   attachFolder(store).catch(() => {});
   isModelCached().then((c) => { if (c) loadModel(store).catch(() => {}); });
@@ -60,10 +66,22 @@ export function renderConnect(root, store) {
     }
   } }, 'Pick a folder');
 
+  const pickRO = h('button', { onclick: async () => {
+    try {
+      const handle = await pickFolderReadOnly();
+      if (handle) await openFolder(store, `ro:${handle.name}`, handle);
+    } catch (e) {
+      err.hidden = false; err.textContent = `Could not read folder: ${e.message}`;
+    }
+  } }, 'Search a folder, read-only');
+
   box.append(
     h('h1', null, state.folder ? 'Switch folder' : 'No folder connected.'),
     h('p', { class: 'lead' }, 'Pick one to start. Nothing is written until you confirm a reviewed batch.'),
-    h('div', { class: 'row' }, pick),
+    h('div', { class: 'row' }, pick, pickRO),
+    h('p', { class: 'muted', style: { fontSize: '12px' } },
+      'Chrome will not let a site open your whole Downloads, Desktop, Documents or home folder for editing, and says it “contains system files”; folders inside them are fine. ',
+      h('b', null, 'Search a folder, read-only'), ' opens any folder, those included, for searching only: Chrome asks to confirm the upload, nothing can be renamed or moved, and it is picked again each visit. The search index is remembered either way.'),
     err,
   );
 

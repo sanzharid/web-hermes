@@ -45,6 +45,16 @@ an invoice for chairs and desks; "who cleans the office and how do we cancel" fi
 - Results can be selected into the Files panel, where Rules and Rename act on them, and the agent has a
   `search_files` tool over the same index.
 
+**Downloads, Desktop, Documents and the home folder.** Chrome's folder picker (File System Access) refuses
+to hand a page *those folders themselves* for editing, though any folder inside them is fine. This is
+Chromium's built-in blocklist (`kDontBlockChildren` for the home, Desktop, Documents and Downloads
+directories); there's no flag or policy to lift it, and installing as a PWA doesn't change it. For searching
+those folders, **Search a folder, read-only** on the start screen uses an ordinary folder upload
+(`<input webkitdirectory>`), which is not subject to that list. Chrome asks you to confirm the upload, and the
+files stay on your machine. The result is read-only: you can search it and preview a plan, but Apply is
+disabled and `applyPlan` refuses it. The folder isn't remembered between visits, though its search index is,
+so re-picking only embeds files that changed (`src/fs/readonly.js`, `scripts/readonly-test.mjs`).
+
 **Not yet covered:** PDF *contents*. PDFs are matched on name, title and author only and are marked
 "name only" in results. Reading PDF text needs a real parser (pdf.js, about 1 MB, which also works offline).
 That is the obvious next step for document-heavy folders. Long documents are represented by their opening
@@ -291,6 +301,7 @@ node scripts/bench-model.mjs [modelId]  # load the model, measure tokens/s
 node scripts/plan-test.mjs [modelId]    # 40 mixed files through the execution and interpretation passes
 node scripts/offline-test.mjs           # service worker, COOP/COEP injection, shell and model offline
 node scripts/search-test.mjs            # semantic search end to end with the real model (HF_MIRROR=<dir>)
+node scripts/readonly-test.mjs          # read-only folder upload of a "Downloads" dir: lists, searches (HF_MIRROR), cannot apply
 node scripts/embed-bench.mjs            # embedding load time, throughput, retrieval sanity check
 npm run test:live                       # drive the deployed site: boot, SW, isolation, env check
 ```
