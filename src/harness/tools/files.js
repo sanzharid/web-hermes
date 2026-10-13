@@ -45,15 +45,28 @@ export function registerFileTools(registry) {
   });
   registry.register({
     name: 'search_files',
-    description: 'Find files by meaning rather than by name: describe what the file is about. Returns the best matches with a short snippet. Arguments: query, limit (default 5).',
+    description: 'Find files by meaning and by metadata: describe what the file is about, and/or its age, date, size or type ("invoices from 2023", "old files", "PDFs over 5 MB", "photos from last month"). Returns the best matches with date, size and a short snippet. Arguments: query, limit (default 5).',
     schema: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'integer' } }, required: ['query'] },
     handler: async (args, ctx) => {
       const { searchIndex, searchEmbedder } = await import('../../search/controller.js');
+      const { parseQuery } = await import('../../search/query.js');
+      const query = String(args.query ?? '');
       const index = searchIndex();
       const embedder = searchEmbedder();
-      if (!index?.entries.length || !embedder) return { error: 'the semantic index is not built for this folder; use list_files instead' };
-      const { results } = await index.search(String(args.query ?? ''), embedder, Math.min(Number(args.limit) || 5, 15));
-      return { results: results.map((r) => ({ path: r.path, score: Number(r.score.toFixed(3)), snippet: r.snippet.slice(0, 160) })) };
+      const needsModel = !!parseQuery(query).text;
+      if (!index || (needsModel && (!index.entries.length || !embedder))) return { error: 'the semantic index is not built for this folder; use list_files instead, or search by date, size or type only' };
+      const files = listing(ctx).filter((f) => f.kind === 'file');
+      const { results, parsed } = await index.search(query, needsModel ? embedder : null, Math.min(Number(args.limit) || 5, 15), files);
+      return {
+        understood: parsed.labels.length ? parsed.labels.join(', ') : undefined,
+        results: results.map((r) => ({
+          path: r.path,
+          ...(r.score != null ? { score: Number(r.score.toFixed(3)) } : {}),
+          modified: new Date(r.lastModified).toISOString().slice(0, 10),
+          size: r.size,
+          snippet: (r.snippet ?? '').slice(0, 160),
+        })),
+      };
     },
   });
   registry.register({

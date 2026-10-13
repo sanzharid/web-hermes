@@ -106,9 +106,10 @@ for (const [q, want] of cases) {
   const r = await search(q);
   const ok = [].concat(want).includes(r.top[0][0]);
   if (ok) hits++;
-  console.log(`   ${ok ? 'hit ' : 'MISS'} ${q.padEnd(46)} -> ${r.top[0][0].padEnd(20)} ${r.top[0][1]} (then ${r.top[1][0]} ${r.top[1][1]}) ${r.ms}ms`);
+  console.log(`   ${ok ? 'hit ' : 'MISS'} ${q.padEnd(46)} -> ${r.top[0][0].padEnd(20)} ${r.top[0][1]} (then ${r.top[1] ? `${r.top[1][0]} ${r.top[1][1]}` : 'nothing else matches the filter'}) ${r.ms}ms`);
 }
 check(hits >= cases.length - 1, `paraphrased queries find the right file first: ${hits}/${cases.length}`);
+await search('vacation in Portugal'); // unfiltered, so every indexed file is a candidate
 check(await page.locator('.result').count() > 0 && await page.locator('.result .tag:has-text("name only")').count() >= 1, 'results render, and files matched without content are labelled');
 
 // Incremental: change one file, only that one is re-embedded.

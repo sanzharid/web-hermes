@@ -7,6 +7,7 @@ import { TEXT_EXT, parseExif, parsePdf } from '../plan/enrich.js';
 import { splitExt } from '../util/names.js';
 import { queryText, documentText } from '../runtime/embedder.js';
 import { officeText, OFFICE_EXT, OFFICE_MAX_BYTES } from './office.js';
+import { parseQuery, combine } from './query.js';
 
 export const EXCERPT_CHARS = 1800; // ~400-500 tokens: the first part of a document says what it is
 export const BATCH = 4;
@@ -33,6 +34,7 @@ const KINDS = [
   [/^\.(mp4|mov|avi|mkv|webm)$/, 'video'],
   [/^\.(eml|msg)$/, 'email'],
   [/^\.(zip|7z|rar|tar|gz|tgz)$/, 'archive'],
+  [/^\.(exe|msi|msix|appx|dmg|pkg)$/, 'installer or program'],
   [/^\.(js|mjs|ts|py|java|cs|go|rs|c|cpp|h|sh|ps1|bat|sql|rb|php)$/, 'source code'],
 ];
 
@@ -202,8 +204,21 @@ export class SearchIndex {
     return { embedded: fresh.length, reused: current.length, removed: removed.length, pending: toEmbed.length - fresh.length, tokens, ms: performance.now() - t0 };
   }
 
-  async search(query, embedder, k = 20) {
-    const { vectors: [qv], stats } = await embedder.embed([queryText(query)]);
-    return { results: rank(qv, this.entries, k), ms: stats?.ms };
+  /**
+   * Search by meaning and metadata. `files` is the live listing, which supplies size and date.
+   * A query that is only metadata ("old files", "large videos") never touches the model, so it
+   * works before the model is loaded and over files that are not indexed yet.
+   */
+  async search(query, embedder, k = 20, files = []) {
+    const p = parseQuery(query);
+    if (!p.text) {
+      const byPath = new Map(this.entries.map((e) => [e.path, e]));
+      const results = combine(p, files, null, k).map((r) => ({ ...r, snippet: byPath.get(r.path)?.snippet ?? '', hasText: byPath.get(r.path)?.hasText ?? false }));
+      return { results, ms: 0, parsed: p };
+    }
+    if (!embedder) throw new Error('Searching by content needs the model; date, size and type searches (\u201cold files\u201d, \u201clarge videos\u201d) work without it.');
+    const { vectors: [qv], stats } = await embedder.embed([queryText(p.text)]);
+    const scored = rank(qv, this.entries, this.entries.length);
+    return { results: combine(p, files, scored, k), ms: stats?.ms, parsed: p };
   }
 }

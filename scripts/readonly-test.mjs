@@ -4,7 +4,7 @@
 import { chromium } from 'playwright-core';
 import { createServer } from 'vite';
 import http from 'node:http';
-import { createReadStream, existsSync, statSync, mkdtempSync, mkdirSync, writeFileSync, readdirSync } from 'node:fs';
+import { createReadStream, existsSync, statSync, mkdtempSync, mkdirSync, writeFileSync, readdirSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -17,11 +17,15 @@ const DL = join(base, 'Downloads');
 mkdirSync(join(DL, 'Taxes'), { recursive: true });
 const FILES = {
   'scan0001.txt': 'INVOICE #4471 Acme Supplies Ltd. Office chairs x4. Total due: 1,240.00 EUR',
+  'acme-invoice.txt': 'INVOICE #5120 Acme Supplies Ltd. Desk lamps x6. Total due: 310.00 EUR',
   'untitled.txt': 'Grocery list: eggs, milk, flour, butter, maple syrup.',
   'trip.txt': 'Lisbon day 2: Belem tower, pasteis de nata, tram 28 through Alfama.',
   'Taxes/2025 return.txt': 'Income tax return 2025, deductions for home office and pension contributions.',
 };
 for (const [p, c] of Object.entries(FILES)) writeFileSync(join(DL, p), c);
+// Real modification dates, which a folder upload carries through as File.lastModified.
+const MTIME = { 'untitled.txt': '2019-04-02', 'acme-invoice.txt': '2021-03-15' };
+for (const [p, d] of Object.entries(MTIME)) utimesSync(join(DL, p), new Date(d), new Date(d));
 const before = JSON.stringify(readdirSync(DL, { recursive: true }).sort());
 
 let MIRROR = null;
@@ -52,7 +56,7 @@ await chooser.setFiles(DL);
 await page.waitForSelector('.crumb:has-text("read-only")');
 const st = await page.evaluate(() => { const s = window.__sift.store.get(); return { name: s.folder.name, id: s.folder.id, ro: s.folder.readOnly, files: s.listing.filter((e) => e.kind === 'file').map((e) => e.path).sort() }; });
 check(st.name === 'Downloads' && st.ro && st.id === 'ro:Downloads', `opened "${st.name}" read-only`);
-check(JSON.stringify(st.files) === JSON.stringify(['scan0001.txt', 'trip.txt', 'untitled.txt']), `top-level listing: ${st.files.join(', ')}`);
+check(JSON.stringify(st.files) === JSON.stringify(['acme-invoice.txt', 'scan0001.txt', 'trip.txt', 'untitled.txt']), `top-level listing: ${st.files.join(', ')}`);
 check(await page.locator('nav a:has-text("Undo journals")').count() === 0, 'no undo journals nav for a read-only folder');
 
 const persisted = await page.evaluate(() => new Promise((res) => {
@@ -62,16 +66,42 @@ const persisted = await page.evaluate(() => new Promise((res) => {
 }));
 check(!persisted.length, `no handle remembered (${JSON.stringify(persisted)})`);
 
+async function find(q) {
+  await page.fill('.left input[type=text]', q);
+  await page.press('.left input[type=text]', 'Enter');
+  await page.waitForFunction((q) => { const s = window.__sift.store.get().search; return (s.query === q && s.results && !s.searching) || s.error; }, q, { timeout: 30000 });
+  return page.evaluate(() => { const s = window.__sift.store.get().search; return { paths: s.results?.map((r) => r.path) ?? [], error: s.error, labels: s.parsed?.labels, text: s.parsed?.text }; });
+}
+
+// Metadata queries work before the model is downloaded.
+let r = await find('old files');
+check(r.paths.slice(0, 2).join() === 'untitled.txt,acme-invoice.txt', `"old files" without the model, oldest first: ${r.paths.join(', ')}`);
+check(await page.locator('.understood:has-text("oldest first")').count() === 1, 'the screen says how the query was read');
+r = await find('files from 2021');
+check(r.paths.join() === 'acme-invoice.txt', `"files from 2021": ${r.paths.join(', ')}`);
+r = await find('older than 3 years');
+check(r.paths.join() === 'untitled.txt,acme-invoice.txt', `"older than 3 years": ${r.paths.join(', ')}`);
+check(await page.locator('.result .num:has-text("years ago")').count() === 2, 'results show their age');
+r = await find('invoices');
+check(/needs the model/.test(r.error ?? ''), 'a content query before the model says it needs the model, and downloads nothing');
+
 if (MIRROR) {
+  await page.evaluate(() => window.__sift.store.set({ search: { ...window.__sift.store.get().search, error: null } }));
   await page.click('button:has-text("Download & load")');
   await page.waitForFunction(() => { const s = window.__sift.store.get().search; return s.model === 'ready' && !s.build && s.lastBuild; }, null, { timeout: 600000 });
   const b = await page.evaluate(() => window.__sift.store.get().search.lastBuild);
   check(b.embedded === st.files.length, `indexed ${b.embedded} files`);
-  await page.fill('.left input[type=text]', 'grocery shopping');
-  await page.press('.left input[type=text]', 'Enter');
-  await page.waitForFunction(() => window.__sift.store.get().search.query === 'grocery shopping' && window.__sift.store.get().search.results, null, { timeout: 30000 });
-  const top = await page.evaluate(() => window.__sift.store.get().search.results[0]?.path);
-  check(top === 'untitled.txt', `"grocery shopping" finds untitled.txt (got ${top})`);
+  r = await find('grocery shopping');
+  check(r.paths[0] === 'untitled.txt', `"grocery shopping" finds untitled.txt (got ${r.paths[0]})`);
+  r = await find('invoices');
+  const plain = r.paths.slice(0, 2);
+  check(plain.slice().sort().join() === 'acme-invoice.txt,scan0001.txt', `"invoices": ${plain.join(', ')}`);
+  r = await find('old invoices');
+  check(r.text === 'invoices' && r.paths[0] === 'acme-invoice.txt', `"old invoices" puts the 2021 invoice first: ${r.paths.slice(0, 2).join(', ')} (plain order was ${plain.join(', ')})`);
+  r = await find('newest invoices');
+  check(r.paths[0] === 'scan0001.txt', `"newest invoices" puts the recent one first: ${r.paths.slice(0, 2).join(', ')}`);
+  r = await find('invoices from 2021');
+  check(r.paths.join() === 'acme-invoice.txt', `"invoices from 2021": ${r.paths.join(', ')}`);
 } else console.log('skip - search part (HF_MIRROR not set)');
 
 await page.click('.tabs button:has-text("Rename")');

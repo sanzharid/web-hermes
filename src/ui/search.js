@@ -1,6 +1,7 @@
 // Semantic search: the primary surface. Describe what a file is about; the model finds it by
 // meaning rather than by name.
 import { h, plural, fmtBytes } from './dom.js';
+import { parseQuery } from '../search/query.js';
 import { EMBED_MODEL } from '../runtime/embedder.js';
 import { buildIndex, cancelBuild, runSearch, staleCount, loadModel } from '../search/controller.js';
 
@@ -55,11 +56,12 @@ export function renderSearch(main, store) {
 
   const input = h('input', {
     type: 'text', class: 'mono', value: draft || s.query,
-    placeholder: 'e.g. the contract with the cleaning company, or notes from the budget meeting',
+    placeholder: 'e.g. the contract with the cleaning company, invoices from last year, old files, videos over 1 GB',
     oninput: (e) => { draft = e.target.value; },
     onkeydown: (e) => { if (e.key === 'Enter') go(); },
   });
-  const btn = h('button', { class: 'primary', disabled: s.model !== 'ready' || !s.indexed || !!s.searching, onclick: () => go() }, 'Find');
+  // Date/size/type queries work without the model; runSearch explains when a query needs it.
+  const btn = h('button', { class: 'primary', disabled: !files.length || !!s.searching, onclick: () => go() }, 'Find');
   function go() {
     const q = (draft || input.value).trim();
     if (q) runSearch(store, q).catch((e) => store.set({ search: { ...store.get().search, error: e.message } }));
@@ -67,6 +69,7 @@ export function renderSearch(main, store) {
   body.append(section('Describe what you are looking for'), h('div', { style: { display: 'flex', gap: '8px' } }, input, btn));
   if (!s.indexed && s.model === 'ready' && !building) body.append(h('p', { class: 'muted' }, files.length ? 'Index the folder first: each file is read once and remembered.' : 'This folder has no files.'));
 
+  if (s.error && s.model === 'ready') body.append(h('div', { class: 'note warn' }, s.error));
   if (s.searching) body.append(h('p', { class: 'muted' }, `Searching for “${s.searching}”…`));
   if (s.results) renderResults(body, store, s, files);
   setTimeout(() => input.focus({ preventScroll: true }), 0);
@@ -80,21 +83,40 @@ function indexLine(s, nFiles, stale) {
   return parts.join(' · ');
 }
 
+const AGE = [[365.25, 'year'], [30.44, 'month'], [7, 'week'], [1, 'day']];
+function age(ts) {
+  const days = (Date.now() - ts) / 86400000;
+  if (days < 1) return 'today';
+  for (const [d, u] of AGE) if (days >= d) { const n = Math.floor(days / d); return `${n} ${u}${n > 1 ? 's' : ''} ago`; }
+  return 'today';
+}
+const day = (ts) => new Date(ts).toISOString().slice(0, 10);
+
 function renderResults(body, store, s, files) {
   const byPath = new Map(files.map((f) => [f.path, f]));
-  body.append(section(`Results for “${s.query}”${s.ms != null ? ` · ${s.ms} ms` : ''}`));
-  if (!s.results.length) { body.append(h('p', { class: 'muted' }, 'Nothing indexed yet.')); return; }
+  const p = s.parsed ?? parseQuery(s.query);
+  body.append(section(`Results for “${s.query}”${s.ms ? ` · ${s.ms} ms` : ''}`));
+  if (p.labels.length) {
+    body.append(h('div', { class: 'understood' },
+      h('span', { class: 'muted' }, 'Understood as '),
+      ...p.labels.map((l) => h('span', { class: 'chip' }, l)),
+      p.text ? [h('span', { class: 'muted' }, ' about '), h('span', { class: 'chip text' }, p.text)] : h('span', { class: 'muted' }, ' · by date, size and type only, no model needed'),
+    ));
+  }
+  if (!s.results.length) { body.append(h('p', { class: 'muted' }, p.labels.length ? 'No file matches those conditions.' : 'Nothing indexed yet.')); return; }
   const top = s.results[0].score;
   const list = h('div', { style: { opacity: s.searching ? '0.45' : '1' } });
   for (const r of s.results) {
     const f = byPath.get(r.path);
+    const when = f?.lastModified ?? r.lastModified;
     // Scores are relative: bar length is against the best match, so the gap between results reads at a glance.
-    const rel = Math.max(0, Math.min(1, (r.score - (top - 0.25)) / 0.25));
-    list.append(h('div', { class: 'result', title: `cosine ${r.score.toFixed(3)}` },
+    const rel = r.score == null ? null : Math.max(0, Math.min(1, (r.score - (top - 0.25)) / 0.25));
+    list.append(h('div', { class: 'result', title: r.score == null ? null : `cosine ${r.score.toFixed(3)}` },
       h('div', { class: 'result-head' },
-        h('span', { class: 'bar' }, h('i', { style: { width: `${Math.round(rel * 100)}%` } })),
+        rel == null ? null : h('span', { class: 'bar' }, h('i', { style: { width: `${Math.round(rel * 100)}%` } })),
         h('span', { class: 'mono name' }, r.path),
-        r.hasText ? null : h('span', { class: 'tag' }, 'name only'),
+        r.score != null && !r.hasText ? h('span', { class: 'tag' }, 'name only') : null,
+        when ? h('span', { class: 'muted num', title: `modified ${day(when)}` }, age(when)) : null,
         h('span', { class: 'muted num' }, f ? fmtBytes(f.size) : 'missing'),
       ),
       r.snippet ? h('div', { class: 'snippet' }, r.snippet) : null,

@@ -1,6 +1,7 @@
 // Owns the embedding model and the current folder's index, and reports into the store.
 import { Embedder, EMBED_MODEL } from '../runtime/embedder.js';
 import { SearchIndex } from './index.js';
+import { parseQuery } from './query.js';
 import { getRuntime } from '../runtime/index.js';
 
 let embedder = null;
@@ -16,6 +17,7 @@ export const searchInitial = {
   lastBuild: null,
   query: '',
   results: null,
+  parsed: null, // how the query was read: filters, ordering, and the text sent to the model
   ms: null,
   searching: null, // query in flight
 };
@@ -65,7 +67,7 @@ export async function attachFolder(store) {
   if (index?.folder !== folder.id) {
     buildCtrl?.abort();
     index = new SearchIndex(folder.id);
-    set(store, { results: null, query: '', lastBuild: null, build: null });
+    set(store, { results: null, parsed: null, query: '', lastBuild: null, build: null });
   }
   const n = await index.load();
   set(store, { indexed: n });
@@ -115,12 +117,18 @@ export function cancelBuild() {
 
 export async function runSearch(store, query) {
   if (!query.trim() || !index) return;
-  const e = await loadModel(store);
+  const files = store.get().listing.filter((f) => f.kind === 'file');
+  // Metadata-only queries ("old files") never need the model; content queries need it loaded.
+  const needsModel = !!parseQuery(query).text;
+  if (needsModel && !embedder?.ready) {
+    set(store, { error: 'Searching by content needs the model: download it above. Date, size and type searches (\u201cold files\u201d, \u201cPDFs from last year\u201d) work without it.' });
+    return;
+  }
   // The query and its results change together; in between, the old results stay up, marked stale.
-  set(store, { searching: query });
+  set(store, { searching: query, error: null });
   try {
-    const { results, ms } = await index.search(query, e, 25);
-    set(store, { query, results, ms, searching: null });
+    const { results, ms, parsed } = await index.search(query, needsModel ? embedder : null, 25, files);
+    set(store, { query, results, ms, parsed, searching: null });
     return results;
   } catch (err) {
     set(store, { searching: null, error: err.message });

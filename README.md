@@ -45,6 +45,27 @@ an invoice for chairs and desks; "who cleans the office and how do we cancel" fi
 - Results can be selected into the Files panel, where Rules and Rename act on them, and the agent has a
   `search_files` tool over the same index.
 
+**Age, dates, size and type.** An embedding can't answer "old files": age is relative to today, and a
+vector is fixed when the file is indexed. So these words are read from the query by a small deterministic
+parser (`src/search/query.js`) and applied to the live file listing. The model only gets the text that's left.
+
+| query | read as |
+| --- | --- |
+| `old files`, `oldest stuff` | every file, oldest first (no model needed) |
+| `older than 2 years`, `not touched in 6 months`, `more than a year old` | modified before that, oldest first |
+| `last week`, `yesterday`, `this month`, `from last year`, `in the past 3 months` | modified in that period |
+| `from 2023`, `before March 2022`, `since 2021` | calendar dates |
+| `large files`, `videos over 1 GB`, `under 10 KB`, `tiny files` | size filters and ordering |
+| `PDFs`, `photos`, `slides`, `spreadsheets`, `installers`, `zips` | file type |
+| `old invoices`, `PDF invoices from 2023`, `photos from last month of the beach` | both: filters, then meaning |
+
+When a query mixes the two, the filters apply first. An ordering word ("old", "newest", "biggest") only
+reorders results within 0.05 of the best match, so a weak match never jumps above a good one because of
+its date. The search screen shows how it read the query ("Understood as: oldest first · PDFs · about
+invoices"), and each result shows its age and size. Look-alike content stays content: "small business plan",
+"new york trip" and "image processing paper" are searched as written. Queries that are only metadata need no
+model and work on files that aren't indexed yet. The agent's `search_files` tool takes the same queries.
+
 **Downloads, Desktop, Documents and the home folder.** Chrome's folder picker (File System Access) refuses
 to hand a page *those folders themselves* for editing, though any folder inside them is fine. This is
 Chromium's built-in blocklist (`kDontBlockChildren` for the home, Desktop, Documents and Downloads
@@ -301,7 +322,7 @@ node scripts/bench-model.mjs [modelId]  # load the model, measure tokens/s
 node scripts/plan-test.mjs [modelId]    # 40 mixed files through the execution and interpretation passes
 node scripts/offline-test.mjs           # service worker, COOP/COEP injection, shell and model offline
 node scripts/search-test.mjs            # semantic search end to end with the real model (HF_MIRROR=<dir>)
-node scripts/readonly-test.mjs          # read-only folder upload of a "Downloads" dir: lists, searches (HF_MIRROR), cannot apply
+node scripts/readonly-test.mjs          # read-only upload of a dated "Downloads" dir: date/size queries, search (HF_MIRROR), cannot apply
 node scripts/embed-bench.mjs            # embedding load time, throughput, retrieval sanity check
 npm run test:live                       # drive the deployed site: boot, SW, isolation, env check
 ```
